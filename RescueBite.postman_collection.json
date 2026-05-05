@@ -1,0 +1,916 @@
+{
+  "info": {
+    "name": "RescueBite API",
+    "description": "Food Waste Reduction Marketplace — complete endpoint collection.\n\n**Setup:**\n1. Import this file into Postman\n2. Run the `Register + Login (customer)` request — tokens are saved automatically\n3. Run `Register + Login (vendor)` and `Register + Login (admin)` for full coverage\n\nAll tokens are stored in collection variables automatically via test scripts.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:8000", "type": "string" },
+    { "key": "customer_token", "value": "", "type": "string" },
+    { "key": "vendor_token", "value": "", "type": "string" },
+    { "key": "admin_token", "value": "", "type": "string" },
+    { "key": "refresh_token", "value": "", "type": "string" },
+    { "key": "listing_id", "value": "1", "type": "string" },
+    { "key": "order_id", "value": "1", "type": "string" },
+    { "key": "vendor_id", "value": "1", "type": "string" },
+    { "key": "user_id", "value": "1", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "System",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/health",
+            "description": "Service liveness check. No auth required."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Service ok', () => pm.expect(pm.response.json().status).to.eql('ok'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register (customer)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/auth/register",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"customer@rescuebite.kz\",\n  \"password\": \"Secure123!\",\n  \"role\": \"customer\",\n  \"full_name\": \"Test Customer\"\n}"
+            },
+            "description": "Creates a customer account. Returns user profile."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "pm.test('Has email', () => pm.expect(pm.response.json().email).to.eql('customer@rescuebite.kz'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Register (vendor)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/auth/register",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"vendor@rescuebite.kz\",\n  \"password\": \"Secure123!\",\n  \"role\": \"vendor\",\n  \"full_name\": \"Test Vendor\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": { "exec": ["pm.test('Status 201', () => pm.response.to.have.status(201));"] }
+            }
+          ]
+        },
+        {
+          "name": "Register (admin)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/auth/register",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@rescuebite.kz\",\n  \"password\": \"Secure123!\",\n  \"role\": \"admin\",\n  \"full_name\": \"Test Admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": { "exec": ["pm.test('Status 201', () => pm.response.to.have.status(201));"] }
+            }
+          ]
+        },
+        {
+          "name": "Login (customer) — saves token",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/auth/login",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"customer@rescuebite.kz\",\n  \"password\": \"Secure123!\"\n}"
+            },
+            "description": "Token is automatically saved to {{customer_token}} variable."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('customer_token', json.access_token);",
+                  "pm.collectionVariables.set('refresh_token', json.refresh_token);",
+                  "pm.test('Has access_token', () => pm.expect(json.access_token).to.be.a('string'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login (vendor) — saves token",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/auth/login",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"vendor@rescuebite.kz\",\n  \"password\": \"Secure123!\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('vendor_token', pm.response.json().access_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login (admin) — saves token",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/auth/login",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@rescuebite.kz\",\n  \"password\": \"Secure123!\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('admin_token', pm.response.json().access_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get My Profile",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/auth/me",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customer_token}}" }]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Has role', () => pm.expect(pm.response.json().role).to.eql('customer'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Profile",
+          "request": {
+            "method": "PATCH",
+            "url": "{{base_url}}/auth/me",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customer_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Updated Customer Name\",\n  \"phone\": \"+77001234567\",\n  \"allergen_profile\": [\"gluten\", \"dairy\"]\n}"
+            },
+            "description": "Update full_name, phone, allergen_profile. All fields optional."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Name updated', () => pm.expect(pm.response.json().full_name).to.eql('Updated Customer Name'));",
+                  "pm.test('Allergens saved', () => pm.expect(pm.response.json().allergen_profile).to.include('gluten'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Change Password",
+          "request": {
+            "method": "PATCH",
+            "url": "{{base_url}}/auth/me/password",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customer_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"current_password\": \"Secure123!\",\n  \"new_password\": \"NewSecure456!\"\n}"
+            },
+            "description": "Returns 204 on success. Wrong current_password → 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": { "exec": ["pm.test('Status 204', () => pm.response.to.have.status(204));"] }
+            }
+          ]
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/auth/refresh",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{refresh_token}}\"\n}"
+            },
+            "description": "Old refresh token is invalidated (rotation). New tokens returned."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('refresh_token', pm.response.json().refresh_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/auth/logout",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{refresh_token}}\"\n}"
+            },
+            "description": "Revokes the refresh token. Returns 204."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": { "exec": ["pm.test('Status 204', () => pm.response.to.have.status(204));"] }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Vendors",
+      "item": [
+        {
+          "name": "Register Vendor Profile",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/vendors/register",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{vendor_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"business_name\": \"Green Cafe\",\n  \"bin_number\": \"123456789012\",\n  \"address\": \"ul. Abaya 1, Almaty\",\n  \"latitude\": 43.238,\n  \"longitude\": 76.945\n}"
+            },
+            "description": "Vendor submits profile for admin approval. is_approved starts as false."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "pm.test('Pending approval', () => pm.expect(pm.response.json().is_approved).to.be.false);",
+                  "pm.collectionVariables.set('vendor_id', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get My Vendor Profile",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/vendors/me",
+            "header": [{ "key": "Authorization", "value": "Bearer {{vendor_token}}" }]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": { "exec": ["pm.test('Status 200', () => pm.response.to.have.status(200));"] }
+            }
+          ]
+        },
+        {
+          "name": "Get Vendor by ID",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/vendors/{{vendor_id}}",
+            "description": "Public endpoint — no auth required."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": { "exec": ["pm.test('Status 200', () => pm.response.to.have.status(200));"] }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Listings",
+      "item": [
+        {
+          "name": "Browse Listings (public)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/listings?limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["listings"],
+              "query": [
+                { "key": "limit", "value": "20" },
+                { "key": "cursor", "value": "", "disabled": true },
+                { "key": "lat", "value": "43.238", "disabled": true },
+                { "key": "lng", "value": "76.945", "disabled": true }
+              ]
+            },
+            "description": "Public. Enable lat/lng params to filter within 10km radius."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Has data array', () => pm.expect(pm.response.json().data).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Listing (vendor)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/listings",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{vendor_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Sushi Box — 40% off\",\n  \"description\": \"Fresh sushi set, made today\",\n  \"original_price\": 5000,\n  \"discount_percentage\": 40,\n  \"quantity_total\": 10,\n  \"pickup_window_start\": \"2026-12-31T18:00:00\",\n  \"pickup_window_end\": \"2026-12-31T21:00:00\",\n  \"latitude\": 43.238,\n  \"longitude\": 76.945,\n  \"allergens\": [\"fish\", \"gluten\"]\n}"
+            },
+            "description": "Vendor must be approved by admin first. Returns listing with calculated current_price."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('listing_id', json.id);",
+                  "pm.test('Price calculated', () => pm.expect(json.current_price).to.eql(3000));",
+                  "pm.test('Status active', () => pm.expect(json.status).to.eql('active'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Listing by ID",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/listings/{{listing_id}}",
+            "description": "Public. Returns full listing with allergen list."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Has allergens', () => pm.expect(pm.response.json().allergens).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Allergen Check",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/listings/allergen-check",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customer_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ingredients\": [\"wheat flour\", \"salmon\", \"rice\", \"sugar\"],\n  \"user_allergens\": [\"gluten\", \"dairy\"]\n}"
+            },
+            "description": "Core RescueBite feature. Returns safe=false if any ingredient matches user allergens."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Unsafe — has gluten', () => pm.expect(pm.response.json().safe).to.be.false);",
+                  "pm.test('Flagged wheat flour', () => pm.expect(pm.response.json().flagged_ingredients).to.include('wheat flour'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Orders",
+      "item": [
+        {
+          "name": "Place Order",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/orders",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customer_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    { \"listing_id\": {{listing_id}}, \"quantity\": 2 }\n  ]\n}"
+            },
+            "description": "Atomic. Decrements stock with SELECT FOR UPDATE. 409 if out of stock."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('order_id', json.id);",
+                  "pm.test('Status pending', () => pm.expect(json.status).to.eql('pending'));",
+                  "pm.test('Has pickup_token', () => pm.expect(json.pickup_token).to.be.a('string'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "My Orders",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/orders?limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["orders"],
+              "query": [
+                { "key": "limit", "value": "20" },
+                { "key": "cursor", "value": "", "disabled": true }
+              ]
+            },
+            "header": [{ "key": "Authorization", "value": "Bearer {{customer_token}}" }]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Has data', () => pm.expect(pm.response.json().data).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Order by ID",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/orders/{{order_id}}",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customer_token}}" }]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": { "exec": ["pm.test('Status 200', () => pm.response.to.have.status(200));"] }
+            }
+          ]
+        },
+        {
+          "name": "Update Order Status (vendor confirms)",
+          "request": {
+            "method": "PATCH",
+            "url": "{{base_url}}/orders/{{order_id}}/status",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{vendor_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"confirmed\"\n}"
+            },
+            "description": "Valid statuses: pending → confirmed → ready_for_pickup → picked_up / cancelled"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Status confirmed', () => pm.expect(pm.response.json().status).to.eql('confirmed'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Admin — Users",
+      "item": [
+        {
+          "name": "List Users",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/admin/users?limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "users"],
+              "query": [
+                { "key": "limit", "value": "20" },
+                { "key": "role", "value": "customer", "disabled": true },
+                { "key": "is_active", "value": "true", "disabled": true },
+                { "key": "cursor", "value": "", "disabled": true }
+              ]
+            },
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "description": "Filter by role (customer/vendor/admin) and/or is_active."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "if (json.data.length > 0) pm.collectionVariables.set('user_id', json.data[0].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get User by ID",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/admin/users/{{user_id}}",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": { "exec": ["pm.test('Status 200', () => pm.response.to.have.status(200));"] }
+            }
+          ]
+        },
+        {
+          "name": "Update User",
+          "request": {
+            "method": "PATCH",
+            "url": "{{base_url}}/admin/users/{{user_id}}",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Admin Updated Name\",\n  \"role\": \"customer\",\n  \"is_active\": true\n}"
+            },
+            "description": "All fields optional. Changes are written to audit_logs."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": { "exec": ["pm.test('Status 200', () => pm.response.to.have.status(200));"] }
+            }
+          ]
+        },
+        {
+          "name": "Suspend User",
+          "request": {
+            "method": "PATCH",
+            "url": {
+              "raw": "{{base_url}}/admin/users/{{user_id}}/suspend?is_active=false",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "users", "{{user_id}}", "suspend"],
+              "query": [{ "key": "is_active", "value": "false" }]
+            },
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "description": "Quick toggle. Use is_active=true to unsuspend."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Suspended message', () => pm.expect(pm.response.json().detail).to.include('suspended'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete User",
+          "request": {
+            "method": "DELETE",
+            "url": "{{base_url}}/admin/users/{{user_id}}",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "description": "Hard delete. Blocked (409) if user has orders or a vendor profile. Blocked (400) if deleting own admin account."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('204 or 409 or 400', () => {",
+                  "  pm.expect([204, 400, 409]).to.include(pm.response.code);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Admin — Vendors",
+      "item": [
+        {
+          "name": "List Vendors",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/admin/vendors",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "vendors"],
+              "query": [
+                { "key": "is_approved", "value": "false", "disabled": true }
+              ]
+            },
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "description": "Enable is_approved=false to see pending applications."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": { "exec": ["pm.test('Status 200', () => pm.response.to.have.status(200));"] }
+            }
+          ]
+        },
+        {
+          "name": "Approve Vendor",
+          "request": {
+            "method": "PATCH",
+            "url": "{{base_url}}/admin/vendors/{{vendor_id}}/approve",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"approve\",\n  \"reason\": \"Documents verified\"\n}"
+            },
+            "description": "action: 'approve' or 'reject'. After approval the vendor can create listings."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Approved', () => pm.expect(pm.response.json().detail).to.include('approved'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete Vendor",
+          "request": {
+            "method": "DELETE",
+            "url": "{{base_url}}/admin/vendors/{{vendor_id}}",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "description": "Deletes vendor + all their listings. Blocked (409) if vendor has active orders (pending/confirmed)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": ["pm.test('204 or 409', () => pm.expect([204, 409]).to.include(pm.response.code));"]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Admin — Listings",
+      "item": [
+        {
+          "name": "List All Listings",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/admin/listings?limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "listings"],
+              "query": [
+                { "key": "limit", "value": "20" },
+                { "key": "status", "value": "active", "disabled": true },
+                { "key": "vendor_id", "value": "1", "disabled": true },
+                { "key": "cursor", "value": "", "disabled": true }
+              ]
+            },
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "description": "Shows ALL statuses unlike public /listings. Filter by status or vendor_id."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": { "exec": ["pm.test('Status 200', () => pm.response.to.have.status(200));"] }
+            }
+          ]
+        },
+        {
+          "name": "Update Listing",
+          "request": {
+            "method": "PATCH",
+            "url": "{{base_url}}/admin/listings/{{listing_id}}",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Updated by Admin\",\n  \"status\": \"compost\"\n}"
+            },
+            "description": "All fields optional. Use status=compost to force-expire a listing."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": { "exec": ["pm.test('Status 200', () => pm.response.to.have.status(200));"] }
+            }
+          ]
+        },
+        {
+          "name": "Delete Listing",
+          "request": {
+            "method": "DELETE",
+            "url": "{{base_url}}/admin/listings/{{listing_id}}",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "description": "Hard delete. Blocked (409) if listing has order items. Use status=compost instead."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": ["pm.test('204 or 409', () => pm.expect([204, 409]).to.include(pm.response.code));"]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Admin — Orders",
+      "item": [
+        {
+          "name": "List All Orders",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/admin/orders?limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "orders"],
+              "query": [
+                { "key": "limit", "value": "20" },
+                { "key": "status", "value": "pending", "disabled": true },
+                { "key": "vendor_id", "value": "1", "disabled": true },
+                { "key": "customer_id", "value": "1", "disabled": true },
+                { "key": "cursor", "value": "", "disabled": true }
+              ]
+            },
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "description": "Platform-wide orders. Filter by status, vendor_id, or customer_id."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": { "exec": ["pm.test('Status 200', () => pm.response.to.have.status(200));"] }
+            }
+          ]
+        },
+        {
+          "name": "Get Order by ID (admin)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/admin/orders/{{order_id}}",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": { "exec": ["pm.test('Status 200', () => pm.response.to.have.status(200));"] }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Admin — Platform",
+      "item": [
+        {
+          "name": "Platform Stats",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/admin/stats",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Has total_users', () => pm.expect(pm.response.json()).to.have.property('total_users'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Trigger Price Decay",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/admin/trigger-price-decay",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "description": "Manually runs the Celery price decay logic (normally runs every 72h). Returns count of updated listings."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Has detail', () => pm.expect(pm.response.json().detail).to.include('listings'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

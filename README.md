@@ -1,190 +1,220 @@
-# 🥗 RescueBite API
+# RescueBite API
 
-**Food Waste Reduction Marketplace** — FastAPI + SQLModel + PostgreSQL 15
+**Food Waste Reduction Marketplace** — FastAPI + SQLModel + PostgreSQL + Redis
 
 ---
 
-## 🚀 Quick Start (Docker)
+## Quick Start (Docker)
 
 ```bash
-# 1. Clone and enter the project
-git clone <repo-url>
-cd rescuebite-api
+git clone https://github.com/Har1se/foodwaste.git
+cd foodwaste
 
-# 2. Launch all services
 docker compose up --build
-
-# 3. API is live at:
-#    Swagger UI  → http://localhost:8000/docs
-#    ReDoc       → http://localhost:8000/redoc
-#    Health      → http://localhost:8000/health
 ```
 
-That's it. The app auto-creates all DB tables on startup.
+| URL | Description |
+|---|---|
+| http://localhost:8000/docs | Swagger UI (interactive) |
+| http://localhost:8000/redoc | ReDoc |
+| http://localhost:8000/health | Health check |
+
+Tables are created automatically on startup.
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
-| Layer | Technology | Why |
+| Layer | Technology | Purpose |
 |---|---|---|
-| Framework | FastAPI 0.111 | Native async, auto OpenAPI docs, Pydantic validation |
-| ORM | SQLModel 0.0.18 | SQLAlchemy + Pydantic combined — single source of truth |
-| Database | PostgreSQL 15 | ACID for financial transactions, CHECK constraints |
-| Cache | Redis 7 | Rate limiting, refresh token store, stock reservation |
-| Task Queue | Celery 5 + Beat | Price decay cron every 72h, background notifications |
-| Auth | JWT (python-jose) | Access token 15min + Refresh token 7 days (Redis-backed) |
+| Framework | FastAPI 0.111 | Async, auto OpenAPI docs, Pydantic v2 validation |
+| ORM | SQLModel 0.0.38 | SQLAlchemy + Pydantic — single source of truth |
+| Database | PostgreSQL 16 | ACID transactions, CHECK constraints, enums |
+| Cache | Redis 7 | Rate limiting, refresh tokens, stock reservation |
+| Tasks | Celery 5 + Beat | Price decay cron every 72h |
+| Auth | JWT (python-jose) | 15-min access token + 7-day opaque refresh token |
 
 ---
 
-## 🔐 Auth Flow
+## Environment Variables
+
+Copy `.env.example` to `.env`:
+
+| Variable | Required | Description |
+|---|---|---|
+| `DATABASE_URL` | ✅ | `postgresql+asyncpg://user:pass@host/db` |
+| `REDIS_URL` | ✅ | `redis://localhost:6379` |
+| `SECRET_KEY` | ✅ | Min 32 chars — JWT signing key |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | — | Default: 15 |
+| `REFRESH_TOKEN_EXPIRE_DAYS` | — | Default: 7 |
+
+App refuses to start if `SECRET_KEY` < 32 characters.
+
+---
+
+## Auth Flow
 
 ```
-POST /auth/register  →  create account
-POST /auth/login     →  get access_token + refresh_token
-GET  /auth/me        →  use Bearer {access_token}
-POST /auth/refresh   →  exchange refresh_token → new tokens (rotation)
-POST /auth/logout    →  revoke refresh_token
+POST /auth/register   →  create account (customer / vendor / admin)
+POST /auth/login      →  receive access_token + refresh_token
+GET  /auth/me         →  Bearer {access_token}
+PATCH /auth/me        →  update own profile
+PATCH /auth/me/password → change password
+DELETE /auth/me       →  deactivate own account
+POST /auth/refresh    →  rotate refresh_token → new tokens
+POST /auth/logout     →  revoke refresh_token
 ```
 
 **RBAC Roles:** `customer` | `vendor` | `driver` | `admin`
 
-- Wrong role → `403 Forbidden`
-- Missing token → `403` (HTTPBearer)
-- Invalid/expired token → `401 Unauthorized`
+| Error | Reason |
+|---|---|
+| `401` | Invalid or expired access token |
+| `403` | Missing token or insufficient role |
+| `429` | Rate limit exceeded (5 logins/min, 3 registers/hour per IP) |
 
 ---
 
-## 🎯 RescueBite Core Features (Sprint 1)
+## Core Features
 
 ### 1. Food State Machine
 ```
-ACTIVE → DISCOUNTED (days_active ≥ 30, 10% decay every 72h via Celery)
-DISCOUNTED → FREE (price hits 0)
-FREE → COMPOST (pickup_window_end passed)
-ACTIVE/DISCOUNTED → SOLD_OUT (quantity_available = 0)
+ACTIVE → DISCOUNTED   (days_active ≥ 30, 10% price decay every 72h via Celery)
+DISCOUNTED → FREE     (current_price hits 0)
+FREE → COMPOST        (pickup_window_end passed)
+any → SOLD_OUT        (quantity_available = 0)
 ```
+Manual trigger: `POST /admin/trigger-price-decay`
 
 ### 2. Allergen Parser
-```
+```json
 POST /listings/allergen-check
 {
   "ingredients": ["wheat flour", "milk", "sugar"],
   "user_allergens": ["gluten", "dairy"]
 }
-→ { "safe": false, "flagged_ingredients": ["wheat flour", "milk"], ... }
+→ { "safe": false, "flagged_ingredients": ["wheat flour", "milk"], "message": "WARNING: ..." }
+```
+Supports Russian and English ingredient names.
+
+### 3. Atomic Order (two-layer oversell prevention)
+```
+POST /orders
+  1. Redis soft lock (5-min TTL reservation)
+  2. SELECT FOR UPDATE — DB-level row lock
+  3. Decrement quantity_available atomically
+  → 409 if out of stock at either layer
 ```
 
-### 3. Atomic Order (SELECT FOR UPDATE)
-```
-POST /orders  →  locks listings, decrements stock atomically
-               →  409 if stock changes between check and lock
-               →  all items must be from same vendor
-```
+### 4. Audit Log
+Every admin action writes to `audit_logs` table: table, record_id, actor, old/new data.
 
 ---
 
-## 📁 Project Structure
+## API Endpoints
+
+### Auth — `/auth`
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| POST | `/auth/register` | — | Register new account |
+| POST | `/auth/login` | — | Login, get tokens |
+| POST | `/auth/refresh` | — | Rotate refresh token |
+| POST | `/auth/logout` | — | Revoke refresh token |
+| GET | `/auth/me` | Bearer | Get own profile |
+| PATCH | `/auth/me` | Bearer | Update full_name / phone / allergen_profile |
+| PATCH | `/auth/me/password` | Bearer | Change password (requires current password) |
+| DELETE | `/auth/me` | Bearer | Deactivate own account (soft delete) |
+
+### Listings — `/listings`
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| GET | `/listings` | — | Browse active listings. Params: `cursor`, `limit`, `lat`, `lng` |
+| POST | `/listings` | Vendor | Create listing (vendor must be approved) |
+| GET | `/listings/{id}` | — | Get single listing |
+| POST | `/listings/allergen-check` | Bearer | Check ingredients against allergen profile |
+
+### Orders — `/orders`
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| POST | `/orders` | Customer | Place order `{"items":[{"listing_id":1,"quantity":2}]}` |
+| GET | `/orders` | Bearer | My orders (cursor paginated) |
+| GET | `/orders/{id}` | Bearer | Get single order |
+| PATCH | `/orders/{id}/status` | Bearer | Update order status |
+
+### Vendors — `/vendors`
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| POST | `/vendors/register` | Vendor | Submit vendor profile for approval |
+| GET | `/vendors/me` | Vendor | My vendor profile |
+| GET | `/vendors/{id}` | — | Get vendor by ID |
+
+### Admin — `/admin`
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| GET | `/admin/stats` | Admin | Platform statistics |
+| GET | `/admin/users` | Admin | List users. Params: `role`, `is_active`, `cursor`, `limit` |
+| GET | `/admin/users/{id}` | Admin | Get user by ID |
+| PATCH | `/admin/users/{id}` | Admin | Update user (role, full_name, phone, is_active) |
+| DELETE | `/admin/users/{id}` | Admin | Hard delete (blocked if user has orders/vendor profile) |
+| PATCH | `/admin/users/{id}/suspend` | Admin | Quick suspend toggle (`?is_active=false`) |
+| GET | `/admin/vendors` | Admin | List vendors. Param: `is_approved` |
+| PATCH | `/admin/vendors/{id}/approve` | Admin | Approve/reject `{"action":"approve"}` |
+| DELETE | `/admin/vendors/{id}` | Admin | Delete vendor + listings (blocked if active orders) |
+| GET | `/admin/listings` | Admin | All listings. Params: `status`, `vendor_id`, `cursor` |
+| PATCH | `/admin/listings/{id}` | Admin | Edit listing fields or force status change |
+| DELETE | `/admin/listings/{id}` | Admin | Hard delete (blocked if has order items) |
+| GET | `/admin/orders` | Admin | All orders. Params: `status`, `vendor_id`, `customer_id` |
+| GET | `/admin/orders/{id}` | Admin | Get any order by ID |
+| POST | `/admin/trigger-price-decay` | Admin | Manually trigger price decay |
+
+### System
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| GET | `/health` | — | Service health check |
+
+---
+
+## Project Structure
 
 ```
 rescuebite-api/
 ├── app/
-│   ├── main.py              # FastAPI factory, lifespan events
-│   ├── config.py            # Pydantic Settings (validates on startup)
+│   ├── main.py              # FastAPI app factory, lifespan events
+│   ├── config.py            # Pydantic Settings (validates env vars at boot)
 │   ├── database.py          # Async engine, get_session()
-│   ├── models/              # SQLModel table definitions
+│   ├── models/              # SQLModel table definitions (user, vendor, listing, order)
 │   ├── schemas/             # Pydantic request/response schemas
-│   ├── routers/             # HTTP layer (thin — no business logic)
-│   ├── services/            # Business logic (testable in isolation)
-│   ├── tasks/               # Celery async tasks
-│   └── core/                # Security, Redis, RBAC, pagination
-├── migrations/              # Alembic
-├── tests/                   # Pytest async test suite
+│   ├── routers/             # HTTP layer — auth, listings, orders, vendors, admin
+│   ├── services/            # Business logic — auth_service, listing_service, order_service
+│   ├── tasks/               # Celery tasks — price decay
+│   └── core/                # Security (JWT/bcrypt), Redis, RBAC deps, pagination
+├── tests/                   # Pytest async suite (33 tests, SQLite in-memory)
 ├── docker-compose.yml       # api + db + redis + worker + beat
-└── .github/workflows/ci.yml # CI: lint + test + docker build
+├── Dockerfile
+└── requirements.txt
 ```
 
 ---
 
-## 🧪 Running Tests
+## Running Tests
 
 ```bash
-# Install test deps
-pip install -r requirements.txt aiosqlite
-
-# Run all tests
+# Uses SQLite automatically — no PostgreSQL or Redis needed
 pytest tests/ -v
 
 # With coverage
 pytest tests/ -v --cov=app --cov-report=term-missing
 ```
 
----
-
-## 🔑 Environment Variables
-
-Copy `.env.example` to `.env` and fill in real values:
-
-```bash
-cp .env.example .env
-```
-
-| Variable | Required | Description |
-|---|---|---|
-| `DATABASE_URL` | ✅ | PostgreSQL async URL |
-| `REDIS_URL` | ✅ | Redis URL |
-| `SECRET_KEY` | ✅ | Min 32 chars — JWT signing |
-| `KASPI_API_KEY` | ✅ | Kaspi Pay integration |
-| `S3_ACCESS_KEY` | ✅ | MinIO/S3 for photos |
-
-App **refuses to start** if `SECRET_KEY` is shorter than 32 characters.
+33 tests, 1 skipped (SELECT FOR UPDATE — PostgreSQL only).
 
 ---
 
-## 🛡️ Security
+## Security
 
-- **Passwords**: bcrypt with salt (passlib)
-- **JWT**: HS256, 15-min access tokens, 7-day refresh tokens stored in Redis
-- **Rate limiting**: Redis token bucket — 5 login/min, 3 register/hour per IP
-- **RBAC**: Role checked server-side from DB, not from JWT payload
-- **CORS**: Explicit origins only — no wildcard `*`
-- **Audit log**: Append-only `audit_logs` table for all state changes
-- **No hardcoded secrets**: Pydantic Settings validates all env vars at boot
-
----
-
-## 📋 API Endpoints
-
-| Method | Path | Auth | Description |
-|---|---|---|---|
-| POST | `/auth/register` | — | Register (customer/vendor) |
-| POST | `/auth/login` | — | Login → tokens |
-| POST | `/auth/refresh` | — | Rotate refresh token |
-| POST | `/auth/logout` | — | Revoke refresh token |
-| GET | `/auth/me` | Bearer | My profile |
-| GET | `/listings` | — | Browse listings (cursor paged) |
-| POST | `/listings` | Vendor | Create listing |
-| GET | `/listings/{id}` | — | Get listing |
-| POST | `/listings/allergen-check` | Bearer | Allergen parser |
-| POST | `/orders` | Customer | Place order (atomic) |
-| GET | `/orders` | Bearer | My orders |
-| PATCH | `/orders/{id}/status` | Bearer | Update order status |
-| POST | `/vendors/register` | Vendor | Submit vendor profile |
-| GET | `/vendors/me` | Vendor | My vendor profile |
-| GET | `/admin/stats` | Admin | Platform statistics |
-| PATCH | `/admin/vendors/{id}/approve` | Admin | Approve/reject vendor |
-| PATCH | `/admin/users/{id}/suspend` | Admin | Suspend user |
-| POST | `/admin/trigger-price-decay` | Admin | Manual decay trigger |
-
-Full interactive docs: **http://localhost:8000/docs**
-
----
-
-## 🗄️ Database
-
-Schema auto-created on startup (dev). For production use Alembic:
-
-```bash
-alembic upgrade head
-alembic revision --autogenerate -m "describe change"
-```
+- **Passwords**: bcrypt with random salt
+- **JWT**: HS256, 15-min access tokens; refresh tokens are opaque hex stored in Redis
+- **Rate limiting**: Redis counter — 5 login/min, 3 register/hour per IP
+- **RBAC**: Role verified server-side from DB on every request
+- **Audit log**: Every admin write action is logged to `audit_logs`
+- **No secrets in code**: All config via environment variables, validated at startup
