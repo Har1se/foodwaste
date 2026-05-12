@@ -33,6 +33,9 @@ class User(SQLModel, table=True):
         ),
     )
     is_active: bool = Field(default=True)
+    email_verified: bool = Field(default=False)
+    reset_token: Optional[str] = Field(default=None, max_length=64)
+    reset_token_expires: Optional[datetime] = Field(default=None)
     allergen_profile: Optional[str] = Field(default=None, max_length=500)  # JSON list of allergens
     created_at: datetime = Field(default_factory=_utcnow)
     updated_at: datetime = Field(

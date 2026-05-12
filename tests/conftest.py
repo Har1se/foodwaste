@@ -36,6 +36,43 @@ auth_svc.store_refresh_token = mock_store_refresh_token
 auth_svc.get_user_id_from_refresh_token = mock_get_user_id_from_refresh_token
 auth_svc.revoke_refresh_token = mock_revoke_refresh_token
 
+# ── Mock Celery email tasks (no broker in tests) ──────────────────────────────
+from unittest.mock import MagicMock
+
+class _NoOpTask:
+    def delay(self, *args, **kwargs):
+        pass
+
+import app.tasks.email_tasks as email_tasks_module
+email_tasks_module.send_verification_email = _NoOpTask()
+email_tasks_module.send_password_reset_email = _NoOpTask()
+email_tasks_module.send_order_confirmation_email = _NoOpTask()
+email_tasks_module.send_vendor_approved_email = _NoOpTask()
+
+# Also patch the router-level imports
+import app.routers.auth as auth_router_module
+auth_router_module.send_verification_email = _NoOpTask()
+auth_router_module.send_password_reset_email = _NoOpTask()
+
+import app.routers.orders as orders_router_module
+orders_router_module.send_order_confirmation_email = _NoOpTask()
+
+import app.routers.admin as admin_router_module
+admin_router_module.send_vendor_approved_email = _NoOpTask()
+
+# ── Auto-verify users in tests (skip email verification flow) ─────────────────
+_original_register_user = auth_svc.register_user
+
+async def _auto_verified_register_user(data, session):
+    user, otp_code = await _original_register_user(data, session)
+    user.email_verified = True
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+    return user, otp_code
+
+auth_svc.register_user = _auto_verified_register_user
+
 # ── Now import app ────────────────────────────────────────────────────────────
 from app.main import app
 from app.database import get_session

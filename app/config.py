@@ -26,6 +26,14 @@ class Settings(BaseSettings):
     S3_ACCESS_KEY: str = "CHANGE_ME"
     S3_SECRET_KEY: str = "CHANGE_ME"
 
+    # Email (SMTP)
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM: str = "noreply@rescuebite.kz"
+    FRONTEND_URL: str = "http://localhost:3000"
+
     # App
     ENVIRONMENT: str = "development"
     DEBUG: bool = True

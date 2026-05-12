@@ -103,7 +103,7 @@ services:
       ENVIRONMENT: development
     depends_on:
       - redis
-    command: celery -A app.tasks.celery_app.celery_app beat --loglevel=info
+    command: celery -A app.tasks.celery_app.celery_app beat --loglevel=info -s /tmp/celerybeat-schedule
 
 volumes:
   postgres_data:

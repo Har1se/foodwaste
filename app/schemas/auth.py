@@ -75,6 +75,7 @@ class UserProfileResponse(BaseModel):
     full_name: Optional[str]
     role: UserRole
     is_active: bool
+    email_verified: bool = False
     allergen_profile: Optional[List[str]] = None
 
     @field_validator("allergen_profile", mode="before")

@@ -19,6 +19,7 @@ from app.schemas.listing import ListingResponse, ListingUpdate
 from app.schemas.order import OrderResponse, OrderItemResponse
 from app.routers.vendors import VendorResponse
 from app.services.listing_service import apply_price_decay
+from app.tasks.email_tasks import send_vendor_approved_email
 
 
 def _utcnow() -> datetime:
@@ -301,6 +302,13 @@ async def approve_vendor(
     session.add(vendor)
     session.add(audit)
     await session.commit()
+
+    if data.action == "approve":
+        user_result = await session.execute(select(User).where(User.id == vendor.user_id))
+        vendor_user = user_result.scalars().first()
+        if vendor_user:
+            send_vendor_approved_email.delay(vendor_user.email, vendor.business_name)
+
     return {"detail": f"Vendor {data.action}d successfully"}
 
 

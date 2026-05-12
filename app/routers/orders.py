@@ -10,6 +10,7 @@ from app.models.user import User, UserRole
 from app.models.order import Order, OrderItem
 from app.schemas.order import OrderCreateRequest, OrderResponse, OrderStatusUpdate, OrderItemResponse
 from app.services import order_service
+from app.tasks.email_tasks import send_order_confirmation_email
 
 router = APIRouter(prefix="/orders", tags=["Orders"])
 
@@ -45,6 +46,9 @@ async def create_order(
 ):
     """Place an order. Atomically decrements stock using SELECT FOR UPDATE + Redis reservation."""
     order = await order_service.create_order(data, current_user, session)
+    send_order_confirmation_email.delay(
+        current_user.email, order.id, order.pickup_token, float(order.total_amount)
+    )
     return await _build_order_response(order, session)
 
 

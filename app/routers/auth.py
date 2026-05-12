@@ -1,6 +1,7 @@
 import json
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel, EmailStr
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -15,8 +16,30 @@ from app.schemas.auth import (
     UserProfileResponse,
 )
 from app.services import auth_service
+from app.tasks.email_tasks import (
+    send_verification_email,
+    send_password_reset_email,
+)
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
+
+
+class VerifyEmailRequest(BaseModel):
+    email: EmailStr
+    code: str
+
+
+class ResendVerificationRequest(BaseModel):
+    email: EmailStr
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
 
 
 @router.post("/register", response_model=UserProfileResponse, status_code=201)
@@ -25,11 +48,63 @@ async def register(
     request: Request,
     session: AsyncSession = Depends(get_session),
 ):
-    """Register a new user account (customer or vendor)."""
+    """Register a new user account. Sends a 6-digit OTP to the provided email."""
     ip = request.client.host
     await check_rate_limit(f"ratelimit:register:{ip}", max_requests=3, window_seconds=3600)
-    user = await auth_service.register_user(data, session)
+    user, otp_code = await auth_service.register_user(data, session)
+    send_verification_email.delay(user.email, otp_code)
     return UserProfileResponse.model_validate(user)
+
+
+@router.post("/verify-email", status_code=200)
+async def verify_email(
+    data: VerifyEmailRequest,
+    session: AsyncSession = Depends(get_session),
+):
+    """Verify email address using the 6-digit OTP sent at registration."""
+    await auth_service.verify_email(data.email, data.code, session)
+    return {"detail": "Email verified successfully. You can now log in."}
+
+
+@router.post("/resend-verification", status_code=200)
+async def resend_verification(
+    data: ResendVerificationRequest,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    """Resend the email verification OTP."""
+    ip = request.client.host
+    await check_rate_limit(f"ratelimit:resend:{ip}", max_requests=3, window_seconds=3600)
+    otp_code = await auth_service.resend_verification(data.email, session)
+    send_verification_email.delay(data.email, otp_code)
+    return {"detail": "Verification code sent. Check your inbox."}
+
+
+@router.post("/forgot-password", status_code=200)
+async def forgot_password(
+    data: ForgotPasswordRequest,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    """Request a password reset link via email."""
+    ip = request.client.host
+    await check_rate_limit(f"ratelimit:forgot:{ip}", max_requests=3, window_seconds=3600)
+    result = await auth_service.forgot_password(data.email, session)
+    if result:
+        email, reset_token = result
+        send_password_reset_email.delay(email, reset_token)
+    # Always return 200 to prevent email enumeration
+    return {"detail": "If an account with that email exists, a reset link has been sent."}
+
+
+@router.post("/reset-password", status_code=200)
+async def reset_password(
+    data: ResetPasswordRequest,
+    session: AsyncSession = Depends(get_session),
+):
+    """Set a new password using the token from the reset email."""
+    await auth_service.reset_password(data.token, data.new_password, session)
+    return {"detail": "Password reset successfully. You can now log in."}
 
 
 @router.post("/login", response_model=AuthResponse)
