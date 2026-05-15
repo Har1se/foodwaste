@@ -52,6 +52,9 @@ services:
       S3_SECRET_KEY: dev_placeholder
       ENVIRONMENT: development
       DEBUG: "true"
+      ENABLE_RATE_LIMIT: "false"
+      DEV_AUTO_VERIFY_EMAIL: "true"
+      DEV_AUTO_APPROVE_VENDORS: "true"
       ALLOWED_ORIGINS: '["http://localhost:3000","http://localhost:8000"]'
     depends_on:
       db:
@@ -78,6 +81,9 @@ services:
       S3_ACCESS_KEY: dev_placeholder
       S3_SECRET_KEY: dev_placeholder
       ENVIRONMENT: development
+      ENABLE_RATE_LIMIT: "false"
+      DEV_AUTO_VERIFY_EMAIL: "true"
+      DEV_AUTO_APPROVE_VENDORS: "true"
     depends_on:
       db:
         condition: service_healthy

@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     # App
     ENVIRONMENT: str = "development"
     DEBUG: bool = True
+    ENABLE_RATE_LIMIT: bool = False
+    DEV_AUTO_VERIFY_EMAIL: bool = True
+    DEV_AUTO_APPROVE_VENDORS: bool = True
     ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:8000"]
 
     @field_validator("SECRET_KEY")

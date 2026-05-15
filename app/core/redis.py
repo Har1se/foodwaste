@@ -24,6 +24,8 @@ async def close_redis():
 # ── Rate Limiting (token bucket) ──────────────────────────────────────────────
 
 async def check_rate_limit(key: str, max_requests: int, window_seconds: int):
+    if not settings.ENABLE_RATE_LIMIT:
+        return
     r = await get_redis()
     current = await r.incr(key)
     if current == 1:

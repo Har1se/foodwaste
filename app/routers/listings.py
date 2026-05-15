@@ -1,6 +1,7 @@
 from typing import Optional, List
 
 from fastapi import APIRouter, Depends, Query, HTTPException
+from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
@@ -9,9 +10,10 @@ from app.core.dependencies import get_current_user, require_role
 from app.core.pagination import encode_cursor, decode_cursor, CursorPage, PaginationMeta
 from app.models.user import User, UserRole
 from app.models.vendor import Vendor
-from app.models.listing import Listing, ListingAllergen
+from app.models.listing import Listing, ListingAllergen, ListingStatus
+from app.models.order import OrderItem
 from app.schemas.listing import (
-    ListingCreate, ListingResponse,
+    ListingCreate, ListingResponse, ListingUpdate,
     AllergenFilterRequest, AllergenFilterResponse,
 )
 from app.services import listing_service
@@ -48,6 +50,8 @@ async def _fetch_allergens(listing_id: int, session: AsyncSession) -> List[str]:
     )
     return [la.allergen_code for la in result.scalars().all()]
 
+
+# ── Collection endpoints (no path param) ─────────────────────────────────────
 
 @router.get("", response_model=CursorPage[ListingResponse])
 async def list_listings(
@@ -100,18 +104,66 @@ async def create_listing(
     return _listing_to_response(listing, allergens)
 
 
-# Static route BEFORE dynamic /{listing_id} to avoid ambiguity
+# ── Static sub-routes BEFORE /{listing_id} ────────────────────────────────────
+
 @router.post("/allergen-check", response_model=AllergenFilterResponse)
 async def check_allergens(
     data: AllergenFilterRequest,
     _: User = Depends(get_current_user),
 ):
-    """
-    RESCUEBITE CORE: Allergen parser.
-    Submit ingredient list + allergen profile → get safe/unsafe result.
-    """
+    """Allergen parser: submit ingredient list + allergen profile → safe/unsafe result."""
     return await listing_service.parse_allergens(data)
 
+
+@router.get("/vendor/my-listings", response_model=CursorPage[ListingResponse])
+async def get_my_listings(
+    cursor: Optional[str] = Query(None),
+    limit: int = Query(20, ge=1, le=100),
+    status: Optional[ListingStatus] = Query(None),
+    current_user: User = Depends(require_role(UserRole.VENDOR, UserRole.ADMIN)),
+    session: AsyncSession = Depends(get_session),
+):
+    """Get all listings for the authenticated vendor (vendor dashboard)."""
+    vendor_result = await session.execute(select(Vendor).where(Vendor.user_id == current_user.id))
+    vendor = vendor_result.scalars().first()
+    if not vendor:
+        raise HTTPException(status_code=404, detail="Vendor profile not found")
+
+    cursor_id = None
+    if cursor:
+        decoded = decode_cursor(cursor)
+        cursor_id = decoded.get("id") if decoded else None
+
+    query = select(Listing).where(Listing.vendor_id == vendor.id)
+    if status is not None:
+        query = query.where(Listing.status == status)
+    if cursor_id:
+        query = query.where(Listing.id > cursor_id)
+    query = query.order_by(Listing.id).limit(limit + 1)
+
+    result = await session.execute(query)
+    listings = list(result.scalars().all())
+
+    next_id = None
+    if len(listings) > limit:
+        listings = listings[:limit]
+        next_id = listings[-1].id
+
+    responses = []
+    for lst in listings:
+        allergens = await _fetch_allergens(lst.id, session)
+        responses.append(_listing_to_response(lst, allergens))
+
+    return CursorPage(
+        data=responses,
+        pagination=PaginationMeta(
+            limit=limit,
+            next_cursor=encode_cursor({"id": next_id}) if next_id else None,
+        ),
+    )
+
+
+# ── Dynamic /{listing_id} routes ──────────────────────────────────────────────
 
 @router.get("/{listing_id}", response_model=ListingResponse)
 async def get_listing(listing_id: int, session: AsyncSession = Depends(get_session)):
@@ -122,3 +174,87 @@ async def get_listing(listing_id: int, session: AsyncSession = Depends(get_sessi
         raise HTTPException(status_code=404, detail="Listing not found")
     allergens = await _fetch_allergens(listing.id, session)
     return _listing_to_response(listing, allergens)
+
+
+@router.patch("/{listing_id}", response_model=ListingResponse)
+async def update_listing(
+    listing_id: int,
+    data: ListingUpdate,
+    current_user: User = Depends(require_role(UserRole.VENDOR, UserRole.ADMIN)),
+    session: AsyncSession = Depends(get_session),
+):
+    """Update own listing. Vendors can only update listings they own."""
+    result = await session.execute(select(Listing).where(Listing.id == listing_id))
+    listing = result.scalars().first()
+    if not listing:
+        raise HTTPException(status_code=404, detail="Listing not found")
+
+    if current_user.role == UserRole.VENDOR:
+        vendor_result = await session.execute(select(Vendor).where(Vendor.user_id == current_user.id))
+        vendor = vendor_result.scalars().first()
+        if not vendor or listing.vendor_id != vendor.id:
+            raise HTTPException(status_code=403, detail="You can only update your own listings")
+
+    if data.title is not None:
+        listing.title = data.title
+    if data.description is not None:
+        listing.description = data.description
+    if data.quantity_total is not None:
+        listing.quantity_total = data.quantity_total
+        listing.quantity_available = min(listing.quantity_available, data.quantity_total)
+    if data.pickup_window_start is not None:
+        listing.pickup_window_start = data.pickup_window_start
+    if data.pickup_window_end is not None:
+        listing.pickup_window_end = data.pickup_window_end
+    if data.status is not None:
+        listing.status = data.status
+    if data.allergens is not None:
+        existing = await session.execute(
+            select(ListingAllergen).where(ListingAllergen.listing_id == listing_id)
+        )
+        for la in existing.scalars().all():
+            await session.delete(la)
+        for allergen_code in data.allergens:
+            session.add(ListingAllergen(listing_id=listing_id, allergen_code=allergen_code.value))
+
+    session.add(listing)
+    await session.commit()
+    await session.refresh(listing)
+    allergens = await _fetch_allergens(listing.id, session)
+    return _listing_to_response(listing, allergens)
+
+
+@router.delete("/{listing_id}", status_code=204)
+async def delete_listing(
+    listing_id: int,
+    current_user: User = Depends(require_role(UserRole.VENDOR, UserRole.ADMIN)),
+    session: AsyncSession = Depends(get_session),
+):
+    """Delete own listing. Blocked if listing has existing order items."""
+    result = await session.execute(select(Listing).where(Listing.id == listing_id))
+    listing = result.scalars().first()
+    if not listing:
+        raise HTTPException(status_code=404, detail="Listing not found")
+
+    if current_user.role == UserRole.VENDOR:
+        vendor_result = await session.execute(select(Vendor).where(Vendor.user_id == current_user.id))
+        vendor = vendor_result.scalars().first()
+        if not vendor or listing.vendor_id != vendor.id:
+            raise HTTPException(status_code=403, detail="You can only delete your own listings")
+
+    item_count = await session.execute(
+        select(func.count(OrderItem.id)).where(OrderItem.listing_id == listing_id)
+    )
+    if (item_count.scalar() or 0) > 0:
+        raise HTTPException(
+            status_code=409,
+            detail="Cannot delete listing with existing orders. Set status to 'paused' or 'compost' instead.",
+        )
+
+    allergens_result = await session.execute(
+        select(ListingAllergen).where(ListingAllergen.listing_id == listing_id)
+    )
+    for la in allergens_result.scalars().all():
+        await session.delete(la)
+    await session.delete(listing)
+    await session.commit()

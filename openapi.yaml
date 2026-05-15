@@ -1,0 +1,1337 @@
+openapi: 3.1.0
+info:
+  title: RescueBite API
+  description: |
+    Food Waste Reduction Marketplace REST API
+
+    Built with FastAPI + SQLModel + PostgreSQL + Redis + Celery.
+
+    **Auth flow:** Register → Verify Email (OTP) → Login → Bearer token → Refresh → Logout
+
+    **Business flow:**
+    1. Vendor registers and submits business profile
+    2. Admin approves vendor
+    3. Vendor creates listings (food items with discount)
+    4. Customer browses listings, places order
+    5. Customer pays via Kaspi Pay (or simulated)
+    6. Vendor confirms and marks order ready for pickup
+    7. Customer picks up with token
+    8. Celery Beat applies price decay every 72h
+  version: 1.0.0
+  contact:
+    name: RescueBite Team
+
+servers:
+  - url: http://localhost:8000
+    description: Local development
+
+tags:
+  - name: Health
+  - name: Auth
+  - name: Listings
+  - name: Orders
+  - name: Vendors
+  - name: Payments
+  - name: Admin
+  - name: Background Jobs
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      operationId: health
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: ok }
+                  service: { type: string, example: rescuebite-api }
+                  version: { type: string, example: 1.0.0 }
+
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a new user
+      operationId: register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterRequest' }
+            example:
+              email: user@example.com
+              password: "securepassword123"
+              full_name: "Иван Иванов"
+              phone: "+77771234567"
+              role: customer
+      responses:
+        "201":
+          description: User registered. OTP sent to email.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RegisterResponse' }
+        "409": { $ref: '#/components/responses/Conflict' }
+        "422": { $ref: '#/components/responses/UnprocessableEntity' }
+        "429": { $ref: '#/components/responses/TooManyRequests' }
+
+  /auth/verify-email:
+    post:
+      tags: [Auth]
+      summary: Verify email with OTP code
+      operationId: verifyEmail
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, otp_code]
+              properties:
+                email: { type: string, format: email }
+                otp_code: { type: string, minLength: 6, maxLength: 6, example: "123456" }
+      responses:
+        "200":
+          description: Email verified successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  detail: { type: string, example: Email verified successfully }
+        "400": { $ref: '#/components/responses/BadRequest' }
+        "404": { $ref: '#/components/responses/NotFound' }
+
+  /auth/resend-verification:
+    post:
+      tags: [Auth]
+      summary: Resend OTP verification email
+      operationId: resendVerification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+      responses:
+        "200":
+          description: OTP resent (always returns success for security)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  detail: { type: string }
+        "429": { $ref: '#/components/responses/TooManyRequests' }
+
+  /auth/forgot-password:
+    post:
+      tags: [Auth]
+      summary: Request password reset email
+      operationId: forgotPassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+      responses:
+        "200":
+          description: Reset email sent (always returns success)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  detail: { type: string }
+        "429": { $ref: '#/components/responses/TooManyRequests' }
+
+  /auth/reset-password:
+    post:
+      tags: [Auth]
+      summary: Reset password using token from email
+      operationId: resetPassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reset_token, new_password]
+              properties:
+                reset_token: { type: string }
+                new_password: { type: string, minLength: 8 }
+      responses:
+        "200":
+          description: Password changed
+        "400": { $ref: '#/components/responses/BadRequest' }
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login and get JWT tokens
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenResponse' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+        "429": { $ref: '#/components/responses/TooManyRequests' }
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Rotate refresh token
+      operationId: refreshToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token: { type: string }
+      responses:
+        "200":
+          description: New token pair
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenResponse' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Revoke refresh token (logout)
+      operationId: logout
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token: { type: string }
+      responses:
+        "200":
+          description: Logged out
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Get current user profile
+      operationId: getMe
+      security: [{ BearerAuth: [] }]
+      responses:
+        "200":
+          description: User profile
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserProfile' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+
+    patch:
+      tags: [Auth]
+      summary: Update profile (full_name, phone, allergen_profile)
+      operationId: updateMe
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateProfileRequest' }
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserProfile' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+
+  /auth/me/password:
+    patch:
+      tags: [Auth]
+      summary: Change password
+      operationId: changePassword
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [current_password, new_password]
+              properties:
+                current_password: { type: string }
+                new_password: { type: string, minLength: 8 }
+      responses:
+        "200":
+          description: Password changed
+        "400": { $ref: '#/components/responses/BadRequest' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+
+  /auth/me/delete:
+    delete:
+      tags: [Auth]
+      summary: Deactivate own account (soft delete)
+      operationId: deleteMe
+      security: [{ BearerAuth: [] }]
+      responses:
+        "204":
+          description: Account deactivated
+
+  /listings:
+    get:
+      tags: [Listings]
+      summary: Browse active food listings
+      operationId: listListings
+      parameters:
+        - name: cursor
+          in: query
+          schema: { type: string }
+          description: Cursor for pagination
+        - name: limit
+          in: query
+          schema: { type: integer, default: 20, minimum: 1, maximum: 100 }
+        - name: lat
+          in: query
+          schema: { type: number, format: float }
+          description: Latitude for geo-filtering
+        - name: lng
+          in: query
+          schema: { type: number, format: float }
+          description: Longitude for geo-filtering
+      responses:
+        "200":
+          description: Paginated listing list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListingPage'
+
+    post:
+      tags: [Listings]
+      summary: Create a new food listing (vendor only)
+      operationId: createListing
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ListingCreate' }
+            example:
+              title: "Свежие суши (конец дня)"
+              description: "Не раскупленные суши от закрытия — 50% скидка"
+              original_price: 3500
+              discount_percentage: 50
+              quantity_total: 10
+              pickup_window_start: "2025-05-15T18:00:00"
+              pickup_window_end: "2025-05-15T21:00:00"
+              allergens: [fish, gluten]
+              latitude: 51.180
+              longitude: 71.446
+      responses:
+        "201":
+          description: Listing created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ListingResponse' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+
+  /listings/allergen-check:
+    post:
+      tags: [Listings]
+      summary: Check ingredients against user allergen profile
+      operationId: allergenCheck
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ingredients, user_allergens]
+              properties:
+                ingredients:
+                  type: array
+                  items: { type: string }
+                  example: ["мука", "молоко", "яйца"]
+                user_allergens:
+                  type: array
+                  items: { $ref: '#/components/schemas/AllergenCode' }
+      responses:
+        "200":
+          description: Allergen analysis result
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AllergenFilterResponse' }
+
+  /listings/vendor/my-listings:
+    get:
+      tags: [Listings]
+      summary: Get authenticated vendor's own listings
+      operationId: myListings
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: cursor
+          in: query
+          schema: { type: string }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 20 }
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/ListingStatus' }
+      responses:
+        "200":
+          description: Vendor's listing page
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ListingPage' }
+
+  /listings/{listing_id}:
+    get:
+      tags: [Listings]
+      summary: Get a single listing by ID
+      operationId: getListing
+      parameters:
+        - name: listing_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Listing details
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ListingResponse' }
+        "404": { $ref: '#/components/responses/NotFound' }
+
+    patch:
+      tags: [Listings]
+      summary: Update own listing (vendor or admin)
+      operationId: updateListing
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: listing_id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ListingUpdate' }
+      responses:
+        "200":
+          description: Updated listing
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ListingResponse' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+        "404": { $ref: '#/components/responses/NotFound' }
+
+    delete:
+      tags: [Listings]
+      summary: Delete own listing
+      operationId: deleteListing
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: listing_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "204":
+          description: Listing deleted
+        "403": { $ref: '#/components/responses/Forbidden' }
+        "404": { $ref: '#/components/responses/NotFound' }
+        "409": { $ref: '#/components/responses/Conflict' }
+
+  /orders:
+    post:
+      tags: [Orders]
+      summary: Place an order (customer only)
+      operationId: createOrder
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OrderCreateRequest' }
+            example:
+              items:
+                - listing_id: 1
+                  quantity: 2
+      responses:
+        "201":
+          description: Order placed successfully
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrderResponse' }
+        "400": { $ref: '#/components/responses/BadRequest' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "409": { $ref: '#/components/responses/Conflict' }
+
+    get:
+      tags: [Orders]
+      summary: List authenticated user's orders
+      operationId: listOrders
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: cursor
+          in: query
+          schema: { type: string }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 20 }
+      responses:
+        "200":
+          description: Orders list
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrderPage' }
+
+  /orders/{order_id}:
+    get:
+      tags: [Orders]
+      summary: Get order details
+      operationId: getOrder
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Order details
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrderResponse' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+        "404": { $ref: '#/components/responses/NotFound' }
+
+  /orders/{order_id}/status:
+    patch:
+      tags: [Orders]
+      summary: Update order status
+      operationId: updateOrderStatus
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { $ref: '#/components/schemas/OrderStatus' }
+                reason: { type: string }
+      responses:
+        "200":
+          description: Status updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrderResponse' }
+        "400": { $ref: '#/components/responses/BadRequest' }
+
+  /vendors/register:
+    post:
+      tags: [Vendors]
+      summary: Register vendor profile (vendor role required)
+      operationId: registerVendor
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [business_name, bin_number, address, latitude, longitude]
+              properties:
+                business_name: { type: string, example: "Сushi Бар Алматы" }
+                bin_number: { type: string, example: "123456789012" }
+                address: { type: string, example: "ул. Абая 150, Алматы" }
+                latitude: { type: number, example: 43.238 }
+                longitude: { type: number, example: 76.945 }
+      responses:
+        "201":
+          description: Vendor profile created (pending approval)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VendorResponse' }
+        "409": { $ref: '#/components/responses/Conflict' }
+
+  /vendors/me:
+    get:
+      tags: [Vendors]
+      summary: Get own vendor profile
+      operationId: getMyVendor
+      security: [{ BearerAuth: [] }]
+      responses:
+        "200":
+          description: Vendor profile
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VendorResponse' }
+        "404": { $ref: '#/components/responses/NotFound' }
+
+  /vendors/{vendor_id}:
+    get:
+      tags: [Vendors]
+      summary: Get vendor by ID (public)
+      operationId: getVendor
+      parameters:
+        - name: vendor_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Vendor details
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VendorResponse' }
+        "404": { $ref: '#/components/responses/NotFound' }
+
+  /payments/{order_id}/initiate:
+    post:
+      tags: [Payments]
+      summary: Initiate Kaspi Pay payment for an order
+      operationId: initiatePayment
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Payment initiated with Kaspi URL
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaymentInitResponse' }
+        "409": { $ref: '#/components/responses/Conflict' }
+
+  /payments/{order_id}/simulate-success:
+    post:
+      tags: [Payments]
+      summary: "[DEV] Simulate successful Kaspi payment"
+      operationId: simulatePayment
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Payment simulated, order confirmed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaymentStatusResponse' }
+        "409": { $ref: '#/components/responses/Conflict' }
+
+  /payments/{order_id}/status:
+    get:
+      tags: [Payments]
+      summary: Get payment status for an order
+      operationId: getPaymentStatus
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Payment details
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaymentStatusResponse' }
+        "404": { $ref: '#/components/responses/NotFound' }
+
+  /admin/stats:
+    get:
+      tags: [Admin]
+      summary: Platform statistics
+      operationId: adminStats
+      security: [{ BearerAuth: [] }]
+      responses:
+        "200":
+          description: Platform stats
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminStats' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+
+  /admin/users:
+    get:
+      tags: [Admin]
+      summary: List all users
+      operationId: adminListUsers
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: cursor
+          in: query
+          schema: { type: string }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 20 }
+        - name: role
+          in: query
+          schema: { $ref: '#/components/schemas/UserRole' }
+        - name: is_active
+          in: query
+          schema: { type: boolean }
+      responses:
+        "200":
+          description: User list
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserPage' }
+
+  /admin/users/{user_id}:
+    get:
+      tags: [Admin]
+      summary: Get user by ID
+      operationId: adminGetUser
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: User details
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserProfile' }
+        "404": { $ref: '#/components/responses/NotFound' }
+
+    patch:
+      tags: [Admin]
+      summary: Update user (role, name, status)
+      operationId: adminUpdateUser
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                full_name: { type: string }
+                phone: { type: string }
+                role: { $ref: '#/components/schemas/UserRole' }
+                is_active: { type: boolean }
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserProfile' }
+
+    delete:
+      tags: [Admin]
+      summary: Hard-delete a user
+      operationId: adminDeleteUser
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "204":
+          description: User deleted
+        "409": { $ref: '#/components/responses/Conflict' }
+
+  /admin/vendors:
+    get:
+      tags: [Admin]
+      summary: List all vendors
+      operationId: adminListVendors
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: is_approved
+          in: query
+          schema: { type: boolean }
+      responses:
+        "200":
+          description: Vendor list
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/VendorResponse' }
+
+  /admin/vendors/{vendor_id}/approve:
+    patch:
+      tags: [Admin]
+      summary: Approve or reject a vendor
+      operationId: adminApproveVendor
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: vendor_id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action: { type: string, enum: [approve, reject] }
+                reason: { type: string }
+      responses:
+        "200":
+          description: Action applied
+        "404": { $ref: '#/components/responses/NotFound' }
+
+  /admin/vendors/{vendor_id}:
+    delete:
+      tags: [Admin]
+      summary: Hard-delete a vendor and all their listings
+      operationId: adminDeleteVendor
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: vendor_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "204":
+          description: Vendor deleted
+        "409": { $ref: '#/components/responses/Conflict' }
+
+  /admin/listings:
+    get:
+      tags: [Admin]
+      summary: List all listings (all statuses)
+      operationId: adminListListings
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: cursor
+          in: query
+          schema: { type: string }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 20 }
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/ListingStatus' }
+        - name: vendor_id
+          in: query
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Listing page
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ListingPage' }
+
+  /admin/listings/{listing_id}:
+    patch:
+      tags: [Admin]
+      summary: Update any listing
+      operationId: adminUpdateListing
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: listing_id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ListingUpdate' }
+      responses:
+        "200":
+          description: Updated listing
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ListingResponse' }
+
+    delete:
+      tags: [Admin]
+      summary: Delete listing
+      operationId: adminDeleteListing
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: listing_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "204":
+          description: Listing deleted
+        "409": { $ref: '#/components/responses/Conflict' }
+
+  /admin/orders:
+    get:
+      tags: [Admin]
+      summary: List all orders
+      operationId: adminListOrders
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: cursor
+          in: query
+          schema: { type: string }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 20 }
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/OrderStatus' }
+        - name: vendor_id
+          in: query
+          schema: { type: integer }
+        - name: customer_id
+          in: query
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Order page
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrderPage' }
+
+  /admin/orders/{order_id}:
+    get:
+      tags: [Admin]
+      summary: Get any order by ID
+      operationId: adminGetOrder
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Order details
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrderResponse' }
+        "404": { $ref: '#/components/responses/NotFound' }
+
+  /admin/trigger-price-decay:
+    post:
+      tags: [Admin]
+      summary: Manually trigger price decay for all eligible listings
+      operationId: triggerPriceDecay
+      security: [{ BearerAuth: [] }]
+      responses:
+        "200":
+          description: Price decay applied
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  detail: { type: string, example: "Price decay applied to 5 listings" }
+
+  /jobs/status:
+    get:
+      tags: [Background Jobs]
+      summary: Celery queue overview (admin only)
+      operationId: jobsOverview
+      security: [{ BearerAuth: [] }]
+      responses:
+        "200":
+          description: Queue stats and active tasks
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JobsOverview' }
+        "503":
+          description: Cannot reach Celery workers
+
+  /jobs/{task_id}:
+    get:
+      tags: [Background Jobs]
+      summary: Get specific task result by ID
+      operationId: getJob
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Task details
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JobInfo' }
+        "404": { $ref: '#/components/responses/NotFound' }
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    BadRequest:
+      description: Bad request — validation failed
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorDetail' }
+    Unauthorized:
+      description: Not authenticated
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorDetail' }
+    Forbidden:
+      description: Insufficient role or ownership
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorDetail' }
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorDetail' }
+    Conflict:
+      description: Conflict — duplicate resource or business rule violation
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorDetail' }
+    TooManyRequests:
+      description: Rate limit exceeded
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorDetail' }
+    UnprocessableEntity:
+      description: Validation error
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorDetail' }
+
+  schemas:
+    ErrorDetail:
+      type: object
+      properties:
+        detail: { type: string }
+
+    UserRole:
+      type: string
+      enum: [customer, vendor, driver, admin]
+
+    ListingStatus:
+      type: string
+      enum: [draft, active, discounted, free, compost, paused, sold_out]
+
+    OrderStatus:
+      type: string
+      enum: [pending, confirmed, ready_for_pickup, picked_up, cancelled, expired]
+
+    PaymentStatus:
+      type: string
+      enum: [pending, completed, failed, refunded]
+
+    AllergenCode:
+      type: string
+      enum: [none, gluten, dairy, eggs, nuts, soy, fish, shellfish, sesame]
+
+    RegisterRequest:
+      type: object
+      required: [email, password, full_name]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 8 }
+        full_name: { type: string }
+        phone: { type: string }
+        role:
+          $ref: '#/components/schemas/UserRole'
+          default: customer
+
+    RegisterResponse:
+      type: object
+      properties:
+        id: { type: integer }
+        email: { type: string }
+        full_name: { type: string }
+        role: { $ref: '#/components/schemas/UserRole' }
+        detail: { type: string, example: "Registration successful. Please check your email for the verification code." }
+
+    TokenResponse:
+      type: object
+      properties:
+        access_token: { type: string }
+        refresh_token: { type: string }
+        token_type: { type: string, example: bearer }
+
+    UserProfile:
+      type: object
+      properties:
+        id: { type: integer }
+        email: { type: string }
+        full_name: { type: string }
+        phone: { type: string, nullable: true }
+        role: { $ref: '#/components/schemas/UserRole' }
+        is_active: { type: boolean }
+        email_verified: { type: boolean }
+        allergen_profile:
+          type: array
+          items: { $ref: '#/components/schemas/AllergenCode' }
+
+    UpdateProfileRequest:
+      type: object
+      properties:
+        full_name: { type: string }
+        phone: { type: string }
+        allergen_profile:
+          type: array
+          items: { $ref: '#/components/schemas/AllergenCode' }
+
+    ListingCreate:
+      type: object
+      required: [title, description, original_price, discount_percentage, quantity_total, pickup_window_start, pickup_window_end, allergens, latitude, longitude]
+      properties:
+        title: { type: string, maxLength: 200 }
+        description: { type: string, maxLength: 1000 }
+        original_price: { type: integer, minimum: 500, description: Price in KZT }
+        discount_percentage: { type: number, minimum: 1, maximum: 90 }
+        quantity_total: { type: integer, minimum: 1 }
+        pickup_window_start: { type: string, format: date-time }
+        pickup_window_end: { type: string, format: date-time }
+        allergens:
+          type: array
+          items: { $ref: '#/components/schemas/AllergenCode' }
+          minItems: 1
+        latitude: { type: number }
+        longitude: { type: number }
+        photo_url: { type: string, nullable: true }
+
+    ListingUpdate:
+      type: object
+      properties:
+        title: { type: string }
+        description: { type: string }
+        quantity_total: { type: integer, minimum: 1 }
+        pickup_window_start: { type: string, format: date-time }
+        pickup_window_end: { type: string, format: date-time }
+        allergens:
+          type: array
+          items: { $ref: '#/components/schemas/AllergenCode' }
+        status: { $ref: '#/components/schemas/ListingStatus' }
+
+    ListingResponse:
+      type: object
+      properties:
+        id: { type: integer }
+        vendor_id: { type: integer }
+        title: { type: string }
+        description: { type: string }
+        original_price: { type: integer }
+        current_price: { type: integer }
+        discount_percentage: { type: number }
+        quantity_total: { type: integer }
+        quantity_available: { type: integer }
+        status: { $ref: '#/components/schemas/ListingStatus' }
+        pickup_window_start: { type: string, format: date-time }
+        pickup_window_end: { type: string, format: date-time }
+        allergens:
+          type: array
+          items: { $ref: '#/components/schemas/AllergenCode' }
+        latitude: { type: number }
+        longitude: { type: number }
+        photo_url: { type: string, nullable: true }
+        days_active: { type: integer }
+        created_at: { type: string, format: date-time }
+
+    ListingPage:
+      type: object
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/ListingResponse' }
+        pagination: { $ref: '#/components/schemas/PaginationMeta' }
+
+    OrderItemCreate:
+      type: object
+      required: [listing_id, quantity]
+      properties:
+        listing_id: { type: integer }
+        quantity: { type: integer, minimum: 1 }
+
+    OrderCreateRequest:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/OrderItemCreate' }
+          minItems: 1
+
+    OrderItemResponse:
+      type: object
+      properties:
+        id: { type: integer }
+        listing_id: { type: integer }
+        quantity: { type: integer }
+        unit_price: { type: integer }
+
+    OrderResponse:
+      type: object
+      properties:
+        id: { type: integer }
+        customer_id: { type: integer }
+        vendor_id: { type: integer }
+        status: { $ref: '#/components/schemas/OrderStatus' }
+        total_amount: { type: integer }
+        pickup_token: { type: string }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/OrderItemResponse' }
+        created_at: { type: string, format: date-time }
+
+    OrderPage:
+      type: object
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/OrderResponse' }
+        pagination: { $ref: '#/components/schemas/PaginationMeta' }
+
+    VendorResponse:
+      type: object
+      properties:
+        id: { type: integer }
+        user_id: { type: integer }
+        business_name: { type: string }
+        bin_number: { type: string }
+        address: { type: string }
+        latitude: { type: number }
+        longitude: { type: number }
+        is_approved: { type: boolean }
+
+    PaymentInitResponse:
+      type: object
+      properties:
+        order_id: { type: integer }
+        amount_kzt: { type: integer }
+        kaspi_payment_url: { type: string }
+        payment_id: { type: integer }
+        status: { type: string }
+
+    PaymentStatusResponse:
+      type: object
+      properties:
+        payment_id: { type: integer }
+        order_id: { type: integer }
+        amount_kzt: { type: integer }
+        status: { type: string }
+        kaspi_ref_id: { type: string, nullable: true }
+        paid_at: { type: string, format: date-time, nullable: true }
+
+    AdminStats:
+      type: object
+      properties:
+        total_users: { type: integer }
+        total_vendors: { type: integer }
+        total_listings: { type: integer }
+        active_listings: { type: integer }
+        total_orders: { type: integer }
+        pending_orders: { type: integer }
+
+    UserPage:
+      type: object
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/UserProfile' }
+        pagination: { $ref: '#/components/schemas/PaginationMeta' }
+
+    PaginationMeta:
+      type: object
+      properties:
+        limit: { type: integer }
+        next_cursor: { type: string, nullable: true }
+
+    AllergenFilterResponse:
+      type: object
+      properties:
+        safe: { type: boolean }
+        detected_allergens:
+          type: array
+          items: { $ref: '#/components/schemas/AllergenCode' }
+        flagged_ingredients:
+          type: array
+          items: { type: string }
+        message: { type: string }
+
+    JobInfo:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        state: { type: string }
+        result: { type: string, nullable: true }
+        traceback: { type: string, nullable: true }
+        date_done: { type: string, nullable: true }
+
+    JobsOverview:
+      type: object
+      properties:
+        queue_stats:
+          type: object
+          properties:
+            active: { type: integer }
+            reserved: { type: integer }
+            scheduled: { type: integer }
+            workers:
+              type: array
+              items: { type: string }
+        active_tasks:
+          type: array
+          items: { type: object }
+        scheduled_beats:
+          type: array
+          items: { type: object }

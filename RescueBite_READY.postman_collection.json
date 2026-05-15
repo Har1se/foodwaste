@@ -1,0 +1,679 @@
+{
+  "info": {
+    "name": "RescueBite API READY",
+    "description": "Готовая коллекция для проверки RescueBite API. Сначала запускай Health, затем Auth -> Register/Verify/Login для customer, vendor, admin. OTP-код нужно взять из email и вручную вставить в Verify Email.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:8000", "type": "string" },
+    { "key": "password", "value": "Secure123!", "type": "string" },
+    { "key": "customer_email", "value": "customer@test.kz", "type": "string" },
+    { "key": "vendor_email", "value": "vendor@test.kz", "type": "string" },
+    { "key": "admin_email", "value": "admin@test.kz", "type": "string" },
+    { "key": "customer_token", "value": "", "type": "string" },
+    { "key": "vendor_token", "value": "", "type": "string" },
+    { "key": "admin_token", "value": "", "type": "string" },
+    { "key": "customer_refresh", "value": "", "type": "string" },
+    { "key": "vendor_refresh", "value": "", "type": "string" },
+    { "key": "admin_refresh", "value": "", "type": "string" },
+    { "key": "otp_code", "value": "PASTE_OTP_HERE", "type": "string" },
+    { "key": "reset_token", "value": "PASTE_RESET_TOKEN_HERE", "type": "string" },
+    { "key": "user_id", "value": "1", "type": "string" },
+    { "key": "vendor_id", "value": "1", "type": "string" },
+    { "key": "listing_id", "value": "1", "type": "string" },
+    { "key": "order_id", "value": "1", "type": "string" },
+    { "key": "task_id", "value": "PASTE_TASK_ID_HERE", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "00 System",
+      "item": [
+        {
+          "name": "Health",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/health"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('status ok', () => pm.expect(pm.response.json().status).to.eql('ok'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "01 Auth - Customer",
+      "item": [
+        {
+          "name": "Register Customer",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{customer_email}}\",\n  \"password\": \"{{password}}\",\n  \"role\": \"customer\",\n  \"full_name\": \"Test Customer\"\n}"
+            },
+            "url": "{{base_url}}/auth/register"
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('201 Created or 409 Exists', () => pm.expect([201, 409]).to.include(pm.response.code));"] } }]
+        },
+        {
+          "name": "Verify Customer Email",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{customer_email}}\",\n  \"code\": \"{{otp_code}}\"\n}"
+            },
+            "url": "{{base_url}}/auth/verify-email",
+            "description": "Перед запуском вставь OTP из письма в collection variable otp_code."
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('200 OK', () => pm.response.to.have.status(200));"] } }]
+        },
+        {
+          "name": "Login Customer - save tokens",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{customer_email}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": "{{base_url}}/auth/login"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('customer_token', json.access_token);",
+                  "pm.collectionVariables.set('customer_refresh', json.refresh_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Customer Me",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customer_token}}" }],
+            "url": "{{base_url}}/auth/me"
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('200 OK', () => pm.response.to.have.status(200));"] } }]
+        },
+        {
+          "name": "Update Customer Profile",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customer_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Updated Customer\",\n  \"phone\": \"+77000000001\",\n  \"allergen_profile\": [\"gluten\", \"dairy\"]\n}"
+            },
+            "url": "{{base_url}}/auth/me"
+          }
+        },
+        {
+          "name": "Refresh Customer Token",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{customer_refresh}}\"\n}"
+            },
+            "url": "{{base_url}}/auth/refresh"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('customer_token', json.access_token);",
+                  "pm.collectionVariables.set('customer_refresh', json.refresh_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Forgot Password",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{customer_email}}\"\n}"
+            },
+            "url": "{{base_url}}/auth/forgot-password"
+          }
+        },
+        {
+          "name": "Reset Password",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{reset_token}}\",\n  \"new_password\": \"NewSecure123!\"\n}"
+            },
+            "url": "{{base_url}}/auth/reset-password"
+          }
+        },
+        {
+          "name": "Logout Customer",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{customer_refresh}}\"\n}"
+            },
+            "url": "{{base_url}}/auth/logout"
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 Auth - Vendor",
+      "item": [
+        {
+          "name": "Register Vendor User",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{vendor_email}}\",\n  \"password\": \"{{password}}\",\n  \"role\": \"vendor\",\n  \"full_name\": \"Test Vendor\"\n}"
+            },
+            "url": "{{base_url}}/auth/register"
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('201 Created or 409 Exists', () => pm.expect([201, 409]).to.include(pm.response.code));"] } }]
+        },
+        {
+          "name": "Verify Vendor Email",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{vendor_email}}\",\n  \"code\": \"{{otp_code}}\"\n}"
+            },
+            "url": "{{base_url}}/auth/verify-email"
+          }
+        },
+        {
+          "name": "Login Vendor - save tokens",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{vendor_email}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": "{{base_url}}/auth/login"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('vendor_token', json.access_token);",
+                  "pm.collectionVariables.set('vendor_refresh', json.refresh_token);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "03 Auth - Admin",
+      "item": [
+        {
+          "name": "Register Admin User",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{admin_email}}\",\n  \"password\": \"{{password}}\",\n  \"role\": \"admin\",\n  \"full_name\": \"Test Admin\"\n}"
+            },
+            "url": "{{base_url}}/auth/register"
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('201 Created or 409 Exists', () => pm.expect([201, 409]).to.include(pm.response.code));"] } }]
+        },
+        {
+          "name": "Verify Admin Email",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{admin_email}}\",\n  \"code\": \"{{otp_code}}\"\n}"
+            },
+            "url": "{{base_url}}/auth/verify-email"
+          }
+        },
+        {
+          "name": "Login Admin - save tokens",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{admin_email}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": "{{base_url}}/auth/login"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('admin_token', json.access_token);",
+                  "pm.collectionVariables.set('admin_refresh', json.refresh_token);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "04 Vendors",
+      "item": [
+        {
+          "name": "Register Vendor Profile",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{vendor_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"business_name\": \"Green Cafe\",\n  \"bin_number\": \"123456789012\",\n  \"address\": \"Almaty, Abaya 1\",\n  \"latitude\": 43.238,\n  \"longitude\": 76.945\n}"
+            },
+            "url": "{{base_url}}/vendors/register"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201 Created or 409 Exists', () => pm.expect([201, 409]).to.include(pm.response.code));",
+                  "if (pm.response.code === 201) pm.collectionVariables.set('vendor_id', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get My Vendor Profile",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{vendor_token}}" }],
+            "url": "{{base_url}}/vendors/me"
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["if (pm.response.code === 200) pm.collectionVariables.set('vendor_id', pm.response.json().id);"] } }]
+        },
+        {
+          "name": "Get Vendor By ID",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/vendors/{{vendor_id}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 Listings",
+      "item": [
+        {
+          "name": "Browse Listings",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/listings?limit=20"
+          }
+        },
+        {
+          "name": "Create Listing",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{vendor_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Sushi Box\",\n  \"description\": \"Fresh sushi set\",\n  \"original_price\": 5000,\n  \"discount_percentage\": 40,\n  \"quantity_total\": 10,\n  \"pickup_window_start\": \"2026-12-31T18:00:00\",\n  \"pickup_window_end\": \"2026-12-31T21:00:00\",\n  \"allergens\": [\"fish\", \"gluten\"],\n  \"latitude\": 43.238,\n  \"longitude\": 76.945,\n  \"photo_url\": null\n}"
+            },
+            "url": "{{base_url}}/listings",
+            "description": "Перед этим admin должен approve vendor."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('listing_id', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Allergen Check",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customer_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ingredients\": [\"wheat flour\", \"salmon\", \"rice\"],\n  \"user_allergens\": [\"gluten\", \"dairy\"]\n}"
+            },
+            "url": "{{base_url}}/listings/allergen-check"
+          }
+        },
+        {
+          "name": "My Vendor Listings",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{vendor_token}}" }],
+            "url": "{{base_url}}/listings/vendor/my-listings?limit=20"
+          }
+        },
+        {
+          "name": "Get Listing By ID",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/listings/{{listing_id}}"
+          }
+        },
+        {
+          "name": "Update Listing",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{vendor_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Updated Sushi Box\",\n  \"quantity_total\": 8,\n  \"status\": \"active\"\n}"
+            },
+            "url": "{{base_url}}/listings/{{listing_id}}"
+          }
+        },
+        {
+          "name": "Delete Listing",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{vendor_token}}" }],
+            "url": "{{base_url}}/listings/{{listing_id}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 Orders",
+      "item": [
+        {
+          "name": "Create Order",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customer_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    { \"listing_id\": {{listing_id}}, \"quantity\": 2 }\n  ]\n}"
+            },
+            "url": "{{base_url}}/orders"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('order_id', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "My Orders",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customer_token}}" }],
+            "url": "{{base_url}}/orders?limit=20"
+          }
+        },
+        {
+          "name": "Get Order By ID",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customer_token}}" }],
+            "url": "{{base_url}}/orders/{{order_id}}"
+          }
+        },
+        {
+          "name": "Update Order Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{vendor_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"confirmed\",\n  \"reason\": \"Confirmed by vendor\"\n}"
+            },
+            "url": "{{base_url}}/orders/{{order_id}}/status"
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 Payments",
+      "item": [
+        {
+          "name": "Initiate Payment",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customer_token}}" }],
+            "url": "{{base_url}}/payments/{{order_id}}/initiate"
+          }
+        },
+        {
+          "name": "Simulate Payment Success",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customer_token}}" }],
+            "url": "{{base_url}}/payments/{{order_id}}/simulate-success"
+          }
+        },
+        {
+          "name": "Payment Status",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customer_token}}" }],
+            "url": "{{base_url}}/payments/{{order_id}}/status"
+          }
+        }
+      ]
+    },
+    {
+      "name": "08 Admin",
+      "item": [
+        {
+          "name": "Stats",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "url": "{{base_url}}/admin/stats"
+          }
+        },
+        {
+          "name": "List Users",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "url": "{{base_url}}/admin/users?limit=20"
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["if (pm.response.code === 200 && pm.response.json().data.length) pm.collectionVariables.set('user_id', pm.response.json().data[0].id);"] } }]
+        },
+        {
+          "name": "Get User By ID",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "url": "{{base_url}}/admin/users/{{user_id}}"
+          }
+        },
+        {
+          "name": "Update User",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Admin Updated User\",\n  \"is_active\": true\n}"
+            },
+            "url": "{{base_url}}/admin/users/{{user_id}}"
+          }
+        },
+        {
+          "name": "Suspend User",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "url": "{{base_url}}/admin/users/{{user_id}}/suspend?is_active=false"
+          }
+        },
+        {
+          "name": "List Vendors",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "url": "{{base_url}}/admin/vendors"
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["if (pm.response.code === 200 && pm.response.json().length) pm.collectionVariables.set('vendor_id', pm.response.json()[0].id);"] } }]
+        },
+        {
+          "name": "Approve Vendor",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"approve\",\n  \"reason\": \"Documents verified\"\n}"
+            },
+            "url": "{{base_url}}/admin/vendors/{{vendor_id}}/approve"
+          }
+        },
+        {
+          "name": "List Admin Listings",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "url": "{{base_url}}/admin/listings?limit=20"
+          }
+        },
+        {
+          "name": "Update Admin Listing",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"active\"\n}"
+            },
+            "url": "{{base_url}}/admin/listings/{{listing_id}}"
+          }
+        },
+        {
+          "name": "List Admin Orders",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "url": "{{base_url}}/admin/orders?limit=20"
+          }
+        },
+        {
+          "name": "Get Admin Order By ID",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "url": "{{base_url}}/admin/orders/{{order_id}}"
+          }
+        },
+        {
+          "name": "Trigger Price Decay",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "url": "{{base_url}}/admin/trigger-price-decay"
+          }
+        }
+      ]
+    },
+    {
+      "name": "09 Jobs",
+      "item": [
+        {
+          "name": "Jobs Status",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "url": "{{base_url}}/jobs/status"
+          }
+        },
+        {
+          "name": "Get Job By Task ID",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "url": "{{base_url}}/jobs/{{task_id}}"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -42,7 +42,7 @@ async def register_user(data: RegisterRequest, session: AsyncSession) -> tuple[U
         full_name=data.full_name,
         password_hash=hash_password(data.password),
         role=data.role,
-        email_verified=False,
+        email_verified=settings.DEV_AUTO_VERIFY_EMAIL,
     )
     session.add(user)
     await session.commit()

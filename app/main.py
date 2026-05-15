@@ -10,7 +10,7 @@ from app.core.redis import get_redis, close_redis
 # Import all models so SQLModel picks them up for table creation
 from app.models import *  # noqa: F401, F403
 
-from app.routers import auth, listings, orders, vendors, admin
+from app.routers import auth, listings, orders, vendors, admin, payments, jobs
 
 
 @asynccontextmanager
@@ -75,6 +75,8 @@ app.include_router(listings.router)
 app.include_router(orders.router)
 app.include_router(vendors.router)
 app.include_router(admin.router)
+app.include_router(payments.router)
+app.include_router(jobs.router)
 
 
 @app.get("/health", tags=["Health"])

@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict
 from typing import Optional
 
 from app.database import get_session
+from app.config import settings
 from app.core.dependencies import get_current_user, require_role
 from app.models.user import User, UserRole
 from app.models.vendor import Vendor
@@ -55,6 +56,7 @@ async def register_vendor(
         address=data.address,
         latitude=data.latitude,
         longitude=data.longitude,
+        is_approved=settings.DEV_AUTO_APPROVE_VENDORS,
     )
     session.add(vendor)
     await session.commit()
