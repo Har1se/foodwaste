@@ -1,11 +1,11 @@
 export const LISTING_STATUS_COLORS = {
-  active: 'bg-emerald-100 text-emerald-700',
-  discounted: 'bg-amber-100 text-amber-700',
-  free: 'bg-sky-100 text-sky-700',
-  draft: 'bg-gray-100 text-gray-600',
-  paused: 'bg-gray-100 text-gray-600',
-  sold_out: 'bg-red-100 text-red-700',
-  compost: 'bg-stone-100 text-stone-700',
+  active: 'bg-emerald-600 text-white',
+  discounted: 'bg-amber-500 text-white',
+  free: 'bg-sky-500 text-white',
+  draft: 'bg-gray-200 text-gray-700',
+  paused: 'bg-gray-200 text-gray-700',
+  sold_out: 'bg-red-600 text-white',
+  compost: 'bg-stone-400 text-white',
 }
 
 export const LISTING_STATUS_LABELS = {

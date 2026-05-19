@@ -9,24 +9,33 @@ logger = logging.getLogger(__name__)
 
 
 def send_email(to: str, subject: str, html_body: str) -> None:
-    """Send an HTML email via SMTP. Silently skips if SMTP is not configured."""
-    if not settings.SMTP_HOST or not settings.SMTP_USER:
+    """Send an HTML email via SMTP (Gmail / Yandex / Mail.ru compatible)."""
+    if not settings.SMTP_HOST or not settings.SMTP_USER or not settings.SMTP_PASSWORD:
         logger.warning("SMTP not configured — skipping email to %s", to)
         return
 
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
-    msg["From"] = settings.SMTP_FROM
+    # Gmail requires From to match authenticated user
+    msg["From"] = f"RescueBite <{settings.SMTP_USER}>"
     msg["To"] = to
-    msg.attach(MIMEText(html_body, "html"))
+    msg["Reply-To"] = settings.SMTP_USER
+    msg.attach(MIMEText(html_body, "html", "utf-8"))
 
-    with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
-        server.ehlo()
-        server.starttls()
-        server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
-        server.sendmail(settings.SMTP_FROM, to, msg.as_string())
-
-    logger.info("Email sent to %s — %s", to, subject)
+    try:
+        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=30) as server:
+            server.ehlo()
+            server.starttls()
+            server.ehlo()
+            server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+            server.sendmail(settings.SMTP_USER, [to], msg.as_string())
+        logger.info("Email sent to %s — %s", to, subject)
+    except smtplib.SMTPAuthenticationError:
+        logger.error("SMTP auth failed — check SMTP_USER / SMTP_PASSWORD in .env")
+        raise
+    except smtplib.SMTPException as exc:
+        logger.error("SMTP error sending to %s: %s", to, exc)
+        raise
 
 
 # ── Email templates ───────────────────────────────────────────────────────────

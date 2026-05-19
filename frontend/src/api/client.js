@@ -102,5 +102,7 @@ export const adminApi = {
   orders: (params) => api.get('/admin/orders', { params }),
   getOrder: (id) => api.get(`/admin/orders/${id}`),
   triggerDecay: () => api.post('/admin/trigger-price-decay'),
+  seedReset: () => api.post('/admin/seed-reset'),
+  logs: (params) => api.get('/admin/logs', { params }),
   jobs: () => api.get('/jobs/status'),
 }

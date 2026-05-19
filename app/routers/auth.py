@@ -49,7 +49,7 @@ async def register(
     session: AsyncSession = Depends(get_session),
 ):
     """Register a new user account. Sends a 6-digit OTP to the provided email."""
-    ip = request.client.host
+    ip = request.client.host if request.client else "unknown"
     await check_rate_limit(f"ratelimit:register:{ip}", max_requests=3, window_seconds=3600)
     user, otp_code = await auth_service.register_user(data, session)
     send_verification_email.delay(user.email, otp_code)
@@ -73,7 +73,7 @@ async def resend_verification(
     session: AsyncSession = Depends(get_session),
 ):
     """Resend the email verification OTP."""
-    ip = request.client.host
+    ip = request.client.host if request.client else "unknown"
     await check_rate_limit(f"ratelimit:resend:{ip}", max_requests=3, window_seconds=3600)
     otp_code = await auth_service.resend_verification(data.email, session)
     send_verification_email.delay(data.email, otp_code)
@@ -87,7 +87,7 @@ async def forgot_password(
     session: AsyncSession = Depends(get_session),
 ):
     """Request a password reset link via email."""
-    ip = request.client.host
+    ip = request.client.host if request.client else "unknown"
     await check_rate_limit(f"ratelimit:forgot:{ip}", max_requests=3, window_seconds=3600)
     result = await auth_service.forgot_password(data.email, session)
     if result:
@@ -114,7 +114,7 @@ async def login(
     session: AsyncSession = Depends(get_session),
 ):
     """Login and receive JWT access + refresh tokens."""
-    ip = request.client.host
+    ip = request.client.host if request.client else "unknown"
     await check_rate_limit(f"ratelimit:login:{ip}", max_requests=5, window_seconds=60)
     return await auth_service.login_user(data, session)
 

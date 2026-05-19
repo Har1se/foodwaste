@@ -62,9 +62,21 @@ function AppRoutes() {
           } />
         </Routes>
       </main>
-      <footer className="mt-12 border-t border-gray-200 bg-white py-6">
-        <div className="mx-auto max-w-7xl px-4 text-center text-sm text-gray-400">
-          © 2026 RescueBite - Food Waste Reduction Marketplace
+      <footer className="border-t border-gray-100 bg-white py-8 mt-8">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col items-center gap-2 sm:flex-row sm:justify-between">
+            <div className="flex items-center gap-2">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-600">
+                <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                  <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10z"/>
+                  <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/>
+                </svg>
+              </div>
+              <span className="text-sm font-semibold text-gray-700">RescueBite</span>
+            </div>
+            <p className="text-xs text-gray-400">© 2026 RescueBite — Food Waste Reduction Marketplace</p>
+            <p className="text-xs text-gray-400">Алматы, Казахстан 🇰🇿</p>
+          </div>
         </div>
       </footer>
     </div>

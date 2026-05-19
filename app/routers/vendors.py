@@ -56,7 +56,7 @@ async def register_vendor(
         address=data.address,
         latitude=data.latitude,
         longitude=data.longitude,
-        is_approved=settings.DEV_AUTO_APPROVE_VENDORS,
+        is_approved=True,  # auto-approved: no admin confirmation required
     )
     session.add(vendor)
     await session.commit()

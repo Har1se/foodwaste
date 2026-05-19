@@ -367,7 +367,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"title\": \"Sushi Box\",\n  \"description\": \"Fresh sushi set\",\n  \"original_price\": 5000,\n  \"discount_percentage\": 40,\n  \"quantity_total\": 10,\n  \"pickup_window_start\": \"2026-12-31T18:00:00\",\n  \"pickup_window_end\": \"2026-12-31T21:00:00\",\n  \"allergens\": [\"fish\", \"gluten\"],\n  \"latitude\": 43.238,\n  \"longitude\": 76.945,\n  \"photo_url\": null\n}"
+              "raw": "{\n  \"title\": \"Sushi Box\",\n  \"description\": \"Fresh sushi set\",\n  \"original_price\": 5000,\n  \"discount_percentage\": 40,\n  \"quantity_total\": 9999,\n  \"pickup_window_start\": \"2027-12-31T18:00:00\",\n  \"pickup_window_end\": \"2027-12-31T21:00:00\",\n  \"allergens\": [\"fish\", \"gluten\"],\n  \"latitude\": 43.238,\n  \"longitude\": 76.945,\n  \"photo_url\": \"https://images.unsplash.com/photo-1579871494447-9811cf80d66c?auto=format&fit=crop&w=900&q=80\"\n}"
             },
             "url": "{{base_url}}/listings",
             "description": "Перед этим admin должен approve vendor."
@@ -452,17 +452,47 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"items\": [\n    { \"listing_id\": {{listing_id}}, \"quantity\": 2 }\n  ]\n}"
+              "raw": "{\n  \"items\": [\n    { \"listing_id\": {{listing_id}}, \"quantity\": 1 }\n  ]\n}"
             },
             "url": "{{base_url}}/orders"
           },
           "event": [
             {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// Auto-reset listing stock before each order so POST always succeeds",
+                  "const adminToken = pm.collectionVariables.get('admin_token');",
+                  "const listingId = pm.collectionVariables.get('listing_id');",
+                  "const baseUrl = pm.collectionVariables.get('base_url');",
+                  "if (adminToken && listingId && baseUrl) {",
+                  "    pm.sendRequest({",
+                  "        url: baseUrl + '/admin/listings/' + listingId,",
+                  "        method: 'PATCH',",
+                  "        header: {",
+                  "            'Content-Type': 'application/json',",
+                  "            'Authorization': 'Bearer ' + adminToken",
+                  "        },",
+                  "        body: {",
+                  "            mode: 'raw',",
+                  "            raw: JSON.stringify({ quantity_total: 9999, status: 'active' })",
+                  "        }",
+                  "    }, function(err, res) {",
+                  "        if (err) { console.log('Stock reset failed:', err); }",
+                  "        else { console.log('Stock reset to 9999, status=active'); }",
+                  "    });",
+                  "}"
+                ]
+              }
+            },
+            {
               "listen": "test",
               "script": {
                 "exec": [
                   "pm.test('201 Created', () => pm.response.to.have.status(201));",
-                  "pm.collectionVariables.set('order_id', pm.response.json().id);"
+                  "if (pm.response.code === 201) {",
+                  "    pm.collectionVariables.set('order_id', pm.response.json().id);",
+                  "}"
                 ]
               }
             }

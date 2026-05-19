@@ -9,7 +9,8 @@ from fastapi import HTTPException
 
 from app.models.order import Order, OrderItem, OrderStatus, AuditLog
 from app.models.listing import Listing, ListingStatus
-from app.models.user import User
+from app.models.user import User, UserRole
+from app.models.vendor import Vendor
 from app.schemas.order import OrderCreateRequest, OrderStatusUpdate
 from app.core.redis import reserve_stock, release_stock_reservation
 
@@ -142,6 +143,16 @@ async def create_order(
         raise
 
 
+# Valid status transitions: from_status → [allowed to_statuses]
+_ALLOWED_TRANSITIONS: dict[OrderStatus, list[OrderStatus]] = {
+    OrderStatus.PENDING:          [OrderStatus.CONFIRMED, OrderStatus.CANCELLED],
+    OrderStatus.CONFIRMED:        [OrderStatus.READY_FOR_PICKUP, OrderStatus.CANCELLED],
+    OrderStatus.READY_FOR_PICKUP: [OrderStatus.PICKED_UP],
+    OrderStatus.PICKED_UP:        [],
+    OrderStatus.CANCELLED:        [],
+}
+
+
 async def update_order_status(
     order_id: int,
     data: OrderStatusUpdate,
@@ -153,9 +164,7 @@ async def update_order_status(
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
 
-    from app.models.user import UserRole
-    from app.models.vendor import Vendor
-
+    # ── Authorization ─────────────────────────────────────────────────────────
     if actor.role == UserRole.VENDOR:
         vresult = await session.execute(select(Vendor).where(Vendor.user_id == actor.id))
         vendor = vresult.scalars().first()
@@ -166,21 +175,31 @@ async def update_order_status(
             raise HTTPException(status_code=403, detail="Not your order")
         if data.status != OrderStatus.CANCELLED:
             raise HTTPException(status_code=403, detail="Customers can only cancel orders")
-        if order.status not in [OrderStatus.PENDING]:
-            raise HTTPException(status_code=409, detail="Cannot cancel order at this stage")
+
+    # ── Validate transition ────────────────────────────────────────────────────
+    allowed = _ALLOWED_TRANSITIONS.get(order.status, [])
+    if data.status not in allowed:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Cannot transition order from '{order.status.value}' to '{data.status.value}'. "
+                   f"Allowed: {[s.value for s in allowed] or 'none'}",
+        )
 
     old_status = order.status
     order.status = data.status
     order.updated_at = _utcnow()
 
     if data.status == OrderStatus.CANCELLED:
+        now_ts = _utcnow()
         items_result = await session.execute(select(OrderItem).where(OrderItem.order_id == order.id))
         for item in items_result.scalars().all():
             lresult = await session.execute(select(Listing).where(Listing.id == item.listing_id))
             listing = lresult.scalars().first()
             if listing:
                 listing.quantity_available += item.quantity
-                if listing.status == ListingStatus.SOLD_OUT:
+                # Only restore status if listing was sold-out AND still within pickup window
+                # Never restore COMPOST/FREE/DISCOUNTED listings back to ACTIVE
+                if listing.status == ListingStatus.SOLD_OUT and listing.pickup_window_end > now_ts:
                     listing.status = ListingStatus.ACTIVE
                 session.add(listing)
 

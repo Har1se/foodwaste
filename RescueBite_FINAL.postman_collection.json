@@ -1,0 +1,643 @@
+{
+  "info": {
+    "name": "RescueBite API — FINAL (готово к импорту)",
+    "description": "Полная коллекция. Импортируй и сразу жми Run. Токены сохраняются автоматически. POST /orders сбрасывает сток перед каждым запросом — можно отправлять бесконечно.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url",        "value": "http://localhost:8000", "type": "string" },
+    { "key": "customer_token",  "value": "", "type": "string" },
+    { "key": "vendor_token",    "value": "", "type": "string" },
+    { "key": "admin_token",     "value": "", "type": "string" },
+    { "key": "customer_refresh","value": "", "type": "string" },
+    { "key": "vendor_refresh",  "value": "", "type": "string" },
+    { "key": "admin_refresh",   "value": "", "type": "string" },
+    { "key": "listing_id",      "value": "1", "type": "string" },
+    { "key": "order_id",        "value": "1", "type": "string" },
+    { "key": "vendor_id",       "value": "1", "type": "string" },
+    { "key": "user_id",         "value": "1", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "00 — Система",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": { "method": "GET", "url": "{{base_url}}/health" },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "pm.test('status ok', () => pm.expect(pm.response.json().status).to.eql('ok'));"
+          ]}}]
+        }
+      ]
+    },
+    {
+      "name": "01 — Auth: Customer",
+      "item": [
+        {
+          "name": "Register Customer",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"customer@test.kz\",\n  \"password\": \"Secure123!\",\n  \"role\": \"customer\",\n  \"full_name\": \"Demo Customer\"\n}" },
+            "url": "{{base_url}}/auth/register"
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('201 or 409', () => pm.expect([201, 409]).to.include(pm.response.code));"
+          ]}}]
+        },
+        {
+          "name": "Login Customer → save tokens",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"customer@test.kz\",\n  \"password\": \"Secure123!\"\n}" },
+            "url": "{{base_url}}/auth/login"
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "const j = pm.response.json();",
+            "pm.collectionVariables.set('customer_token', j.access_token);",
+            "pm.collectionVariables.set('customer_refresh', j.refresh_token);",
+            "console.log('customer_token saved');"
+          ]}}]
+        },
+        {
+          "name": "GET /auth/me (Customer)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customer_token}}" }],
+            "url": "{{base_url}}/auth/me"
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "const j = pm.response.json();",
+            "pm.collectionVariables.set('user_id', j.id);",
+            "pm.test('role customer', () => pm.expect(j.role).to.eql('customer'));"
+          ]}}]
+        },
+        {
+          "name": "PATCH /auth/me — Update Profile",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customer_token}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"full_name\": \"Алия Сейткали\",\n  \"phone\": \"+77001234567\",\n  \"allergen_profile\": [\"gluten\", \"dairy\"]\n}" },
+            "url": "{{base_url}}/auth/me"
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));"
+          ]}}]
+        },
+        {
+          "name": "POST /auth/refresh (Customer)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"refresh_token\": \"{{customer_refresh}}\"\n}" },
+            "url": "{{base_url}}/auth/refresh"
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "const j = pm.response.json();",
+            "pm.collectionVariables.set('customer_token', j.access_token);",
+            "pm.collectionVariables.set('customer_refresh', j.refresh_token);"
+          ]}}]
+        },
+        {
+          "name": "POST /auth/forgot-password",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"customer@test.kz\"\n}" },
+            "url": "{{base_url}}/auth/forgot-password"
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));"
+          ]}}]
+        },
+        {
+          "name": "POST /auth/logout (Customer)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"refresh_token\": \"{{customer_refresh}}\"\n}" },
+            "url": "{{base_url}}/auth/logout"
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 — Auth: Vendor",
+      "item": [
+        {
+          "name": "Register Vendor User",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"vendor@test.kz\",\n  \"password\": \"Secure123!\",\n  \"role\": \"vendor\",\n  \"full_name\": \"Green Cafe\"\n}" },
+            "url": "{{base_url}}/auth/register"
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('201 or 409', () => pm.expect([201, 409]).to.include(pm.response.code));"
+          ]}}]
+        },
+        {
+          "name": "Login Vendor → save tokens",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"vendor@test.kz\",\n  \"password\": \"Secure123!\"\n}" },
+            "url": "{{base_url}}/auth/login"
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "const j = pm.response.json();",
+            "pm.collectionVariables.set('vendor_token', j.access_token);",
+            "pm.collectionVariables.set('vendor_refresh', j.refresh_token);"
+          ]}}]
+        }
+      ]
+    },
+    {
+      "name": "03 — Auth: Admin",
+      "item": [
+        {
+          "name": "Register Admin User",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"admin@test.kz\",\n  \"password\": \"Secure123!\",\n  \"role\": \"admin\",\n  \"full_name\": \"Demo Admin\"\n}" },
+            "url": "{{base_url}}/auth/register"
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('201 or 409', () => pm.expect([201, 409]).to.include(pm.response.code));"
+          ]}}]
+        },
+        {
+          "name": "Login Admin → save tokens",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"admin@test.kz\",\n  \"password\": \"Secure123!\"\n}" },
+            "url": "{{base_url}}/auth/login"
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "const j = pm.response.json();",
+            "pm.collectionVariables.set('admin_token', j.access_token);",
+            "pm.collectionVariables.set('admin_refresh', j.refresh_token);"
+          ]}}]
+        }
+      ]
+    },
+    {
+      "name": "04 — Vendors",
+      "item": [
+        {
+          "name": "POST /vendors/register (auto-approved)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{vendor_token}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"business_name\": \"Green Cafe\",\n  \"bin_number\": \"123456789012\",\n  \"address\": \"Алматы, ул. Абая 1\",\n  \"latitude\": 43.238,\n  \"longitude\": 76.945\n}" },
+            "url": "{{base_url}}/vendors/register",
+            "description": "Vendor сразу approved=true без подтверждения админа"
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('201 or 409', () => pm.expect([201, 409]).to.include(pm.response.code));",
+            "if (pm.response.code === 201) {",
+            "  const j = pm.response.json();",
+            "  pm.collectionVariables.set('vendor_id', j.id);",
+            "  pm.test('is_approved=true', () => pm.expect(j.is_approved).to.be.true);",
+            "}"
+          ]}}]
+        },
+        {
+          "name": "GET /vendors/me",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{vendor_token}}" }],
+            "url": "{{base_url}}/vendors/me"
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "if (pm.response.code === 200) pm.collectionVariables.set('vendor_id', pm.response.json().id);"
+          ]}}]
+        },
+        {
+          "name": "GET /vendors/:id",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/vendors/{{vendor_id}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 — Listings",
+      "item": [
+        {
+          "name": "GET /listings — Browse (public)",
+          "request": { "method": "GET", "url": "{{base_url}}/listings?limit=20" },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "const j = pm.response.json();",
+            "pm.test('has data array', () => pm.expect(j.data).to.be.an('array'));",
+            "if (j.data.length > 0) {",
+            "  pm.collectionVariables.set('listing_id', j.data[0].id);",
+            "  console.log('listing_id set to', j.data[0].id);",
+            "}"
+          ]}}]
+        },
+        {
+          "name": "GET /listings/:id",
+          "request": { "method": "GET", "url": "{{base_url}}/listings/{{listing_id}}" },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));"
+          ]}}]
+        },
+        {
+          "name": "POST /listings — Create Listing",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{vendor_token}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"title\": \"Суши-сет Делюкс\",\n  \"description\": \"24 ролла: Филадельфия, Калифорния, Спайси. Свежие, приготовлены сегодня.\",\n  \"original_price\": 6500,\n  \"discount_percentage\": 40,\n  \"quantity_total\": 9999,\n  \"pickup_window_start\": \"2027-12-31T18:00:00\",\n  \"pickup_window_end\": \"2027-12-31T22:00:00\",\n  \"allergens\": [\"fish\", \"gluten\", \"sesame\"],\n  \"latitude\": 43.238,\n  \"longitude\": 76.945,\n  \"photo_url\": \"https://images.unsplash.com/photo-1579871494447-9811cf80d66c?auto=format&fit=crop&w=900&q=80\"\n}" },
+            "url": "{{base_url}}/listings"
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('201 Created', () => pm.response.to.have.status(201));",
+            "pm.collectionVariables.set('listing_id', pm.response.json().id);"
+          ]}}]
+        },
+        {
+          "name": "POST /listings/allergen-check",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customer_token}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"ingredients\": [\"wheat flour\", \"salmon\", \"sesame seeds\", \"soy sauce\"],\n  \"user_allergens\": [\"gluten\", \"dairy\"]\n}" },
+            "url": "{{base_url}}/listings/allergen-check"
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "const j = pm.response.json();",
+            "pm.test('has safe field', () => pm.expect(j).to.have.property('safe'));",
+            "console.log('safe:', j.safe, '| detected:', j.detected_allergens, '| msg:', j.message);"
+          ]}}]
+        },
+        {
+          "name": "GET /listings/vendor/my-listings",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{vendor_token}}" }],
+            "url": "{{base_url}}/listings/vendor/my-listings?limit=50"
+          }
+        },
+        {
+          "name": "PATCH /listings/:id",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{vendor_token}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"title\": \"Суши-сет Делюкс UPDATED\",\n  \"status\": \"active\"\n}" },
+            "url": "{{base_url}}/listings/{{listing_id}}"
+          }
+        },
+        {
+          "name": "DELETE /listings/:id",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{vendor_token}}" }],
+            "url": "{{base_url}}/listings/{{listing_id}}"
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('204 No Content', () => pm.response.to.have.status(204));"
+          ]}}]
+        }
+      ]
+    },
+    {
+      "name": "06 — Orders",
+      "item": [
+        {
+          "name": "POST /orders — Create Order (∞ раз)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customer_token}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"items\": [\n    { \"listing_id\": {{listing_id}}, \"quantity\": 1 }\n  ]\n}" },
+            "url": "{{base_url}}/orders",
+            "description": "Pre-request script сбрасывает сток до 9999 перед каждым запросом → всегда 201"
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": { "exec": [
+                "// Сбрасываем сток до 9999 перед каждым заказом",
+                "const adminToken = pm.collectionVariables.get('admin_token');",
+                "const listingId  = pm.collectionVariables.get('listing_id');",
+                "const baseUrl    = pm.collectionVariables.get('base_url');",
+                "if (adminToken && listingId && baseUrl) {",
+                "    pm.sendRequest({",
+                "        url: baseUrl + '/admin/listings/' + listingId,",
+                "        method: 'PATCH',",
+                "        header: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + adminToken },",
+                "        body: { mode: 'raw', raw: JSON.stringify({ quantity_total: 9999, status: 'active' }) }",
+                "    }, (err, res) => {",
+                "        if (err) console.log('Stock reset failed:', err);",
+                "        else console.log('Stock reset OK, status:', res.code);",
+                "    });",
+                "}"
+              ]}
+            },
+            {
+              "listen": "test",
+              "script": { "exec": [
+                "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                "if (pm.response.code === 201) {",
+                "  const j = pm.response.json();",
+                "  pm.collectionVariables.set('order_id', j.id);",
+                "  pm.test('has pickup_token', () => pm.expect(j.pickup_token).to.be.a('string'));",
+                "}"
+              ]}
+            }
+          ]
+        },
+        {
+          "name": "GET /orders — My Orders",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customer_token}}" }],
+            "url": "{{base_url}}/orders?limit=20"
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "const j = pm.response.json();",
+            "if (j.data && j.data.length > 0) pm.collectionVariables.set('order_id', j.data[0].id);"
+          ]}}]
+        },
+        {
+          "name": "GET /orders/:id",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customer_token}}" }],
+            "url": "{{base_url}}/orders/{{order_id}}"
+          }
+        },
+        {
+          "name": "PATCH /orders/:id/status — Vendor confirms",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{vendor_token}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"confirmed\",\n  \"reason\": \"Vendor подтвердил заказ\"\n}" },
+            "url": "{{base_url}}/orders/{{order_id}}/status"
+          }
+        },
+        {
+          "name": "PATCH /orders/:id/status — Ready",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{vendor_token}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"ready_for_pickup\"\n}" },
+            "url": "{{base_url}}/orders/{{order_id}}/status"
+          }
+        },
+        {
+          "name": "PATCH /orders/:id/status — Picked up",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{vendor_token}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"picked_up\"\n}" },
+            "url": "{{base_url}}/orders/{{order_id}}/status"
+          }
+        },
+        {
+          "name": "PATCH /orders/:id/status — Customer cancels",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customer_token}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"cancelled\"\n}" },
+            "url": "{{base_url}}/orders/{{order_id}}/status"
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 — Payments",
+      "item": [
+        {
+          "name": "POST /payments/:id/initiate",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customer_token}}" }],
+            "url": "{{base_url}}/payments/{{order_id}}/initiate"
+          }
+        },
+        {
+          "name": "POST /payments/:id/simulate-success",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customer_token}}" }],
+            "url": "{{base_url}}/payments/{{order_id}}/simulate-success"
+          }
+        },
+        {
+          "name": "GET /payments/:id/status",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customer_token}}" }],
+            "url": "{{base_url}}/payments/{{order_id}}/status"
+          }
+        }
+      ]
+    },
+    {
+      "name": "08 — Admin",
+      "item": [
+        {
+          "name": "GET /admin/stats",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "url": "{{base_url}}/admin/stats"
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "const j = pm.response.json();",
+            "pm.test('has total_users', () => pm.expect(j).to.have.property('total_users'));",
+            "console.log('Stats:', JSON.stringify(j));"
+          ]}}]
+        },
+        {
+          "name": "GET /admin/users",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "url": "{{base_url}}/admin/users?limit=50"
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "const j = pm.response.json();",
+            "if (j.data && j.data.length > 0) pm.collectionVariables.set('user_id', j.data[0].id);"
+          ]}}]
+        },
+        {
+          "name": "GET /admin/users/:id",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "url": "{{base_url}}/admin/users/{{user_id}}"
+          }
+        },
+        {
+          "name": "PATCH /admin/users/:id",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"full_name\": \"Admin Updated Name\",\n  \"is_active\": true\n}" },
+            "url": "{{base_url}}/admin/users/{{user_id}}"
+          }
+        },
+        {
+          "name": "PATCH /admin/users/:id/suspend",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "url": "{{base_url}}/admin/users/{{user_id}}/suspend?is_active=false"
+          }
+        },
+        {
+          "name": "GET /admin/vendors",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "url": "{{base_url}}/admin/vendors"
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "const j = pm.response.json();",
+            "if (j.length > 0) pm.collectionVariables.set('vendor_id', j[0].id);"
+          ]}}]
+        },
+        {
+          "name": "PATCH /admin/vendors/:id/approve",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"action\": \"approve\",\n  \"reason\": \"Документы проверены\"\n}" },
+            "url": "{{base_url}}/admin/vendors/{{vendor_id}}/approve"
+          }
+        },
+        {
+          "name": "GET /admin/listings",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "url": "{{base_url}}/admin/listings?limit=50"
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "const j = pm.response.json();",
+            "if (j.data && j.data.length > 0) pm.collectionVariables.set('listing_id', j.data[0].id);"
+          ]}}]
+        },
+        {
+          "name": "PATCH /admin/listings/:id — Restock",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"quantity_total\": 9999,\n  \"status\": \"active\"\n}" },
+            "url": "{{base_url}}/admin/listings/{{listing_id}}"
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "const j = pm.response.json();",
+            "pm.test('quantity_available = 9999', () => pm.expect(j.quantity_available).to.eql(9999));"
+          ]}}]
+        },
+        {
+          "name": "GET /admin/orders",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "url": "{{base_url}}/admin/orders?limit=50"
+          }
+        },
+        {
+          "name": "GET /admin/orders/:id",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "url": "{{base_url}}/admin/orders/{{order_id}}"
+          }
+        },
+        {
+          "name": "POST /admin/trigger-price-decay",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "url": "{{base_url}}/admin/trigger-price-decay"
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));"
+          ]}}]
+        },
+        {
+          "name": "DELETE /admin/users/:id",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "url": "{{base_url}}/admin/users/{{user_id}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "09 — Jobs (Celery)",
+      "item": [
+        {
+          "name": "GET /jobs/status",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "url": "{{base_url}}/jobs/status"
+          }
+        }
+      ]
+    }
+  ]
+}

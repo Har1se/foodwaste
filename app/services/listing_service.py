@@ -105,9 +105,19 @@ async def get_listings(
     cursor_id: Optional[int] = None,
     limit: int = 20,
 ) -> tuple[List[Listing], Optional[int]]:
-    """Cursor-based listing search with optional geo-filter."""
+    """Cursor-based listing search with optional geo-filter.
+
+    When a geo-filter is active the query fetches a larger batch so that
+    enough in-range results survive the client-side distance check.  This
+    avoids the pagination bug where filtering after a limit+1 fetch could
+    return fewer than `limit` rows even though more in-range rows exist.
+    """
+    geo_active = lat is not None and lng is not None
+    # Fetch extra rows when geo-filtering to compensate for items outside range
+    fetch_limit = (limit + 1) * 8 if geo_active else (limit + 1)
+
     query = select(Listing).where(
-        Listing.status == ListingStatus.ACTIVE,
+        Listing.status.in_([ListingStatus.ACTIVE, ListingStatus.DISCOUNTED, ListingStatus.FREE]),
         Listing.quantity_available > 0,
         Listing.pickup_window_end > _utcnow(),
     )
@@ -115,18 +125,20 @@ async def get_listings(
     if cursor_id:
         query = query.where(Listing.id > cursor_id)
 
-    query = query.order_by(Listing.id).limit(limit + 1)
+    query = query.order_by(Listing.id).limit(fetch_limit)
     result = await session.execute(query)
     listings = list(result.scalars().all())
+
+    if geo_active:
+        listings = [
+            lst for lst in listings
+            if _haversine(lat, lng, lst.latitude, lst.longitude) <= 10
+        ]
 
     next_cursor = None
     if len(listings) > limit:
         listings = listings[:limit]
         next_cursor = listings[-1].id
-
-    # Client-side geo filter (Haversine) if coordinates provided
-    if lat is not None and lng is not None:
-        listings = [lst for lst in listings if _haversine(lat, lng, lst.latitude, lst.longitude) <= 10]
 
     return listings, next_cursor
 
@@ -167,11 +179,12 @@ async def apply_price_decay(session: AsyncSession) -> int:
         listing.current_price = new_price
         listing.days_active += 3
 
-        # State transitions
+        # State transitions — order matters: FREE check first, no elif
         if new_price == 0:
             listing.status = ListingStatus.FREE
-        elif new_price < listing.original_price:
+        elif listing.status == ListingStatus.ACTIVE:
             listing.status = ListingStatus.DISCOUNTED
+        # DISCOUNTED stays DISCOUNTED until price hits 0
 
         session.add(listing)
         updated += 1

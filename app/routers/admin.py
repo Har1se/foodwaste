@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import select
 from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from app.database import get_session
 from app.core.dependencies import require_role
@@ -14,6 +14,7 @@ from app.models.user import User, UserRole
 from app.models.vendor import Vendor
 from app.models.listing import Listing, ListingStatus, ListingAllergen
 from app.models.order import Order, OrderStatus, OrderItem, Payment, AuditLog
+from app.models.log import SystemLog
 from app.schemas.auth import UserProfileResponse, AdminUserUpdateRequest
 from app.schemas.listing import ListingResponse, ListingUpdate
 from app.schemas.order import OrderResponse, OrderItemResponse
@@ -96,6 +97,25 @@ class AdminStatsResponse(BaseModel):
     active_listings: int
     total_orders: int
     pending_orders: int
+
+
+class SystemLogResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    user_id: Optional[int]
+    role: Optional[str]
+    endpoint: str
+    method: str
+    ip_address: Optional[str]
+    user_agent: Optional[str]
+    request_body: Optional[str]
+    response_status: int
+    error_message: Optional[str]
+    error_traceback: Optional[str]
+    duration_ms: int
+    level: str
+    created_at: datetime
 
 
 # ── Platform stats ────────────────────────────────────────────────────────────
@@ -419,16 +439,13 @@ async def update_listing(
         changed["status"] = data.status.value
     if data.quantity_total is not None:
         listing.quantity_total = data.quantity_total
-        listing.quantity_available = min(listing.quantity_available, data.quantity_total)
+        listing.quantity_available = data.quantity_total  # full restock when admin sets new total
         changed["quantity_total"] = data.quantity_total
     if data.pickup_window_start is not None:
         listing.pickup_window_start = data.pickup_window_start
     if data.pickup_window_end is not None:
         listing.pickup_window_end = data.pickup_window_end
     if data.allergens is not None:
-        await session.execute(
-            select(ListingAllergen).where(ListingAllergen.listing_id == listing_id)
-        )
         existing_allergens = await session.execute(
             select(ListingAllergen).where(ListingAllergen.listing_id == listing_id)
         )
@@ -582,3 +599,111 @@ async def trigger_price_decay(
     """Manually trigger the price decay state machine (normally runs via Celery)."""
     updated = await apply_price_decay(session)
     return {"detail": f"Price decay applied to {updated} listings"}
+
+
+# ── System logs ───────────────────────────────────────────────────────────────
+
+@router.get("/logs", response_model=CursorPage[SystemLogResponse])
+async def get_system_logs(
+    cursor: Optional[str] = Query(None),
+    limit: int = Query(50, ge=1, le=200),
+    user_id: Optional[int] = Query(None, description="Filter by user ID"),
+    endpoint: Optional[str] = Query(None, description="Filter by endpoint (partial match)"),
+    level: Optional[str] = Query(None, description="Filter by level: info | warning | error"),
+    date_from: Optional[datetime] = Query(None, description="ISO datetime lower bound"),
+    date_to: Optional[datetime] = Query(None, description="ISO datetime upper bound"),
+    _: User = Depends(require_role(UserRole.ADMIN)),
+    session: AsyncSession = Depends(get_session),
+):
+    """
+    List system request logs with filtering. Results are newest-first (cursor paginates backwards).
+    Use for debugging, audit, and monitoring.
+    """
+    cursor_id: Optional[int] = None
+    if cursor:
+        decoded = decode_cursor(cursor)
+        cursor_id = decoded.get("id") if decoded else None
+
+    query = select(SystemLog)
+    if user_id is not None:
+        query = query.where(SystemLog.user_id == user_id)
+    if endpoint:
+        query = query.where(SystemLog.endpoint.contains(endpoint))
+    if level in ("info", "warning", "error"):
+        query = query.where(SystemLog.level == level)
+    if date_from is not None:
+        query = query.where(SystemLog.created_at >= date_from)
+    if date_to is not None:
+        query = query.where(SystemLog.created_at <= date_to)
+    if cursor_id is not None:
+        query = query.where(SystemLog.id < cursor_id)
+
+    query = query.order_by(SystemLog.id.desc()).limit(limit + 1)
+    result = await session.execute(query)
+    logs = list(result.scalars().all())
+
+    next_id: Optional[int] = None
+    if len(logs) > limit:
+        logs = logs[:limit]
+        next_id = logs[-1].id
+
+    return CursorPage(
+        data=[SystemLogResponse.model_validate(lg) for lg in logs],
+        pagination=PaginationMeta(
+            limit=limit,
+            next_cursor=encode_cursor({"id": next_id}) if next_id else None,
+        ),
+    )
+
+
+# ── Demo seed reset ───────────────────────────────────────────────────────────
+
+@router.post("/seed-reset")
+async def seed_reset(
+    admin: User = Depends(require_role(UserRole.ADMIN)),
+    session: AsyncSession = Depends(get_session),
+):
+    """
+    Delete all listings owned by the demo vendor and re-seed fresh demo data.
+    Safe to call multiple times — always results in a clean dataset.
+    """
+    from app.demo_seed import auto_seed
+    from app.models.vendor import Vendor as VendorModel
+
+    result = await session.execute(select(User).where(User.email == "vendor@test.kz"))
+    vendor_user = result.scalars().first()
+
+    if vendor_user:
+        vr = await session.execute(select(VendorModel).where(VendorModel.user_id == vendor_user.id))
+        vendor = vr.scalars().first()
+        if vendor:
+            all_listings = await session.execute(
+                select(Listing).where(Listing.vendor_id == vendor.id)
+            )
+            listing_ids = [lst.id for lst in all_listings.scalars().all()]
+            for lid in listing_ids:
+                # remove order items referencing this listing
+                ois = await session.execute(select(OrderItem).where(OrderItem.listing_id == lid))
+                for oi in ois.scalars().all():
+                    await session.delete(oi)
+                # remove allergens
+                als = await session.execute(select(ListingAllergen).where(ListingAllergen.listing_id == lid))
+                for al in als.scalars().all():
+                    await session.delete(al)
+            await session.flush()
+            for lid in listing_ids:
+                lst_r = await session.execute(select(Listing).where(Listing.id == lid))
+                lst = lst_r.scalars().first()
+                if lst:
+                    await session.delete(lst)
+            await session.flush()
+
+    n = await auto_seed(session)
+
+    audit = AuditLog(
+        table_name="listings", record_id=0, action="SEED_RESET",
+        actor_id=admin.id, new_data=str({"seeded": n}),
+    )
+    session.add(audit)
+    await session.commit()
+    return {"detail": f"Seed reset complete — {n} demo listings created"}
