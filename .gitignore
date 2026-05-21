@@ -12,3 +12,5 @@ build/
 venv/
 celerybeat-schedule
 celerybeat.pid
+node_modules/
+frontend/node_modules/
