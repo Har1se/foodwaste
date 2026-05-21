@@ -62,10 +62,10 @@ services:
       FRONTEND_URL: http://localhost:3000
       ENVIRONMENT: development
       DEBUG: "true"
-      ENABLE_RATE_LIMIT: "false"
+      ENABLE_RATE_LIMIT: "true"
       DEV_AUTO_VERIFY_EMAIL: "true"
       DEV_AUTO_APPROVE_VENDORS: "true"
-      ALLOWED_ORIGINS: '["http://localhost:3000","http://localhost:8000"]'
+      ALLOWED_ORIGINS: '["http://localhost:3000","http://localhost:8000","https://rescuebite.deployrocks.com","https://rescuebite-api.deployrocks.com"]'
     depends_on:
       db:
         condition: service_healthy
