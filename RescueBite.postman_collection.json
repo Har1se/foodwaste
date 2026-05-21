@@ -1,0 +1,946 @@
+{
+  "info": {
+    "name": "RescueBite API",
+    "_postman_id": "rescuebite-api-v1-2026",
+    "description": "Food Waste Reduction Marketplace\n\nProduction API: https://foodwaste-gcjn.onrender.com\nFrontend: https://foodwaste-1-fe33.onrender.com\nSwagger: https://foodwaste-gcjn.onrender.com/docs\n\nDemo accounts:\n- customer@test.kz / Secure123!\n- vendor@test.kz / Secure123!\n- admin@test.kz / Secure123!\n\nQuick start:\n1. Run 'Login as Customer' → access_token set automatically\n2. Run 'Login as Vendor' → vendor_token set automatically\n3. Run 'Login as Admin' → admin_token set automatically",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "https://foodwaste-gcjn.onrender.com", "type": "string" },
+    { "key": "access_token", "value": "", "type": "string" },
+    { "key": "refresh_token", "value": "", "type": "string" },
+    { "key": "vendor_token", "value": "", "type": "string" },
+    { "key": "admin_token", "value": "", "type": "string" },
+    { "key": "order_id", "value": "1", "type": "string" },
+    { "key": "listing_id", "value": "1", "type": "string" },
+    { "key": "auction_id", "value": "1", "type": "string" },
+    { "key": "vendor_id", "value": "1", "type": "string" },
+    { "key": "user_id", "value": "1", "type": "string" },
+    { "key": "delivery_id", "value": "1", "type": "string" },
+    { "key": "otp_code", "value": "123456", "type": "string" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }]
+  },
+  "item": [
+    {
+      "name": "🟢 Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/health", "host": ["{{base_url}}"], "path": ["health"] }
+          }
+        },
+        {
+          "name": "API Root (redirects to /docs)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/", "host": ["{{base_url}}"], "path": [""] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🔐 Auth",
+      "item": [
+        {
+          "name": "Register Customer",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"newuser@example.com\",\n  \"password\": \"MyPassword123!\",\n  \"full_name\": \"Test User\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/auth/register", "host": ["{{base_url}}"], "path": ["auth", "register"] }
+          }
+        },
+        {
+          "name": "Verify Email (OTP)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"newuser@example.com\",\n  \"code\": \"{{otp_code}}\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/auth/verify-email", "host": ["{{base_url}}"], "path": ["auth", "verify-email"] }
+          }
+        },
+        {
+          "name": "Resend Verification OTP",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"newuser@example.com\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/auth/resend-verification", "host": ["{{base_url}}"], "path": ["auth", "resend-verification"] }
+          }
+        },
+        {
+          "name": "Login as Customer ⭐",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var json = pm.response.json();",
+                  "if (json.access_token) {",
+                  "    pm.collectionVariables.set('access_token', json.access_token);",
+                  "    pm.collectionVariables.set('refresh_token', json.refresh_token);",
+                  "    console.log('✅ access_token saved');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"customer@test.kz\",\n  \"password\": \"Secure123!\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/auth/login", "host": ["{{base_url}}"], "path": ["auth", "login"] }
+          }
+        },
+        {
+          "name": "Login as Vendor ⭐",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var json = pm.response.json();",
+                  "if (json.access_token) {",
+                  "    pm.collectionVariables.set('vendor_token', json.access_token);",
+                  "    console.log('✅ vendor_token saved');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"vendor@test.kz\",\n  \"password\": \"Secure123!\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/auth/login", "host": ["{{base_url}}"], "path": ["auth", "login"] }
+          }
+        },
+        {
+          "name": "Login as Admin ⭐",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var json = pm.response.json();",
+                  "if (json.access_token) {",
+                  "    pm.collectionVariables.set('admin_token', json.access_token);",
+                  "    console.log('✅ admin_token saved');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@test.kz\",\n  \"password\": \"Secure123!\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/auth/login", "host": ["{{base_url}}"], "path": ["auth", "login"] }
+          }
+        },
+        {
+          "name": "Get My Profile",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/auth/me", "host": ["{{base_url}}"], "path": ["auth", "me"] }
+          }
+        },
+        {
+          "name": "Update My Profile",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Updated Name\",\n  \"phone\": \"+77001234567\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/auth/me", "host": ["{{base_url}}"], "path": ["auth", "me"] }
+          }
+        },
+        {
+          "name": "Change Password",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"current_password\": \"Secure123!\",\n  \"new_password\": \"NewSecure456!\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/auth/me/password", "host": ["{{base_url}}"], "path": ["auth", "me", "password"] }
+          }
+        },
+        {
+          "name": "Forgot Password",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"customer@test.kz\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/auth/forgot-password", "host": ["{{base_url}}"], "path": ["auth", "forgot-password"] }
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var json = pm.response.json();",
+                  "if (json.access_token) {",
+                  "    pm.collectionVariables.set('access_token', json.access_token);",
+                  "    pm.collectionVariables.set('refresh_token', json.refresh_token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{refresh_token}}\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/auth/refresh", "host": ["{{base_url}}"], "path": ["auth", "refresh"] }
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{refresh_token}}\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/auth/logout", "host": ["{{base_url}}"], "path": ["auth", "logout"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🍽 Listings",
+      "item": [
+        {
+          "name": "Browse All Listings",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/listings?limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["listings"],
+              "query": [
+                { "key": "limit", "value": "20" },
+                { "key": "cursor", "value": "", "disabled": true },
+                { "key": "category", "value": "", "disabled": true },
+                { "key": "lat", "value": "", "disabled": true },
+                { "key": "lng", "value": "", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Browse by Category (sushi)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/listings?category=sushi&limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["listings"],
+              "query": [
+                { "key": "category", "value": "sushi" },
+                { "key": "limit", "value": "10" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Listing by ID",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/listings/{{listing_id}}", "host": ["{{base_url}}"], "path": ["listings", "{{listing_id}}"] }
+          }
+        },
+        {
+          "name": "Allergen Check ⭐",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ingredients\": \"wheat flour, eggs, milk, sesame oil, soy sauce\",\n  \"allergen_profile\": [\"GLUTEN\", \"DAIRY\"]\n}"
+            },
+            "url": { "raw": "{{base_url}}/listings/allergen-check", "host": ["{{base_url}}"], "path": ["listings", "allergen-check"] }
+          }
+        },
+        {
+          "name": "Create Listing (vendor token)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var json = pm.response.json();",
+                  "if (json.id) pm.collectionVariables.set('listing_id', json.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{vendor_token}}", "type": "string" }]
+            },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Ролл Калифорния\",\n  \"description\": \"Свежие роллы — остаток после обеда, отдаём со скидкой\",\n  \"original_price\": 2500,\n  \"current_price\": 1500,\n  \"discount_percentage\": 40,\n  \"quantity_total\": 5,\n  \"quantity_available\": 5,\n  \"pickup_window_start\": \"2026-05-22T18:00:00\",\n  \"pickup_window_end\": \"2026-05-22T22:00:00\",\n  \"category\": \"sushi\",\n  \"allergens\": [\"FISH\", \"SESAME\"]\n}"
+            },
+            "url": { "raw": "{{base_url}}/listings", "host": ["{{base_url}}"], "path": ["listings"] }
+          }
+        },
+        {
+          "name": "Update Listing (vendor token)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{vendor_token}}", "type": "string" }]
+            },
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"current_price\": 1200,\n  \"discount_percentage\": 52\n}"
+            },
+            "url": { "raw": "{{base_url}}/listings/{{listing_id}}", "host": ["{{base_url}}"], "path": ["listings", "{{listing_id}}"] }
+          }
+        },
+        {
+          "name": "My Listings (vendor token)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{vendor_token}}", "type": "string" }]
+            },
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/listings/vendor/my-listings?limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["listings", "vendor", "my-listings"],
+              "query": [{ "key": "limit", "value": "20" }]
+            }
+          }
+        },
+        {
+          "name": "Delete Listing (vendor token)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{vendor_token}}", "type": "string" }]
+            },
+            "method": "DELETE",
+            "url": { "raw": "{{base_url}}/listings/{{listing_id}}", "host": ["{{base_url}}"], "path": ["listings", "{{listing_id}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🛒 Orders",
+      "item": [
+        {
+          "name": "Place Order ⭐",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var json = pm.response.json();",
+                  "if (json.id) {",
+                  "    pm.collectionVariables.set('order_id', json.id);",
+                  "    console.log('✅ order_id saved:', json.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"listing_id\": {{listing_id}},\n      \"quantity\": 1\n    }\n  ]\n}"
+            },
+            "url": { "raw": "{{base_url}}/orders", "host": ["{{base_url}}"], "path": ["orders"] }
+          }
+        },
+        {
+          "name": "List My Orders",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/orders?limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["orders"],
+              "query": [{ "key": "limit", "value": "20" }]
+            }
+          }
+        },
+        {
+          "name": "Get Order by ID",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/orders/{{order_id}}", "host": ["{{base_url}}"], "path": ["orders", "{{order_id}}"] }
+          }
+        },
+        {
+          "name": "Update Order Status (vendor token)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{vendor_token}}", "type": "string" }]
+            },
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"CONFIRMED\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/orders/{{order_id}}/status", "host": ["{{base_url}}"], "path": ["orders", "{{order_id}}", "status"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "💳 Payments",
+      "item": [
+        {
+          "name": "Initiate Kaspi Payment",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{base_url}}/payments/{{order_id}}/initiate", "host": ["{{base_url}}"], "path": ["payments", "{{order_id}}", "initiate"] }
+          }
+        },
+        {
+          "name": "Simulate Payment Success ⭐ (demo)",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{base_url}}/payments/{{order_id}}/simulate-success", "host": ["{{base_url}}"], "path": ["payments", "{{order_id}}", "simulate-success"] }
+          }
+        },
+        {
+          "name": "Get Payment Status",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/payments/{{order_id}}/status", "host": ["{{base_url}}"], "path": ["payments", "{{order_id}}", "status"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🏪 Vendors",
+      "item": [
+        {
+          "name": "Register as Vendor",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"business_name\": \"Green Cafe Almaty\",\n  \"bin_number\": \"123456789012\",\n  \"address\": \"ул. Абая 10, Алматы\",\n  \"latitude\": 43.2220,\n  \"longitude\": 76.8512\n}"
+            },
+            "url": { "raw": "{{base_url}}/vendors/register", "host": ["{{base_url}}"], "path": ["vendors", "register"] }
+          }
+        },
+        {
+          "name": "Get My Vendor Profile",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{vendor_token}}", "type": "string" }]
+            },
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/vendors/me", "host": ["{{base_url}}"], "path": ["vendors", "me"] }
+          }
+        },
+        {
+          "name": "Get Vendor by ID (public)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/vendors/{{vendor_id}}", "host": ["{{base_url}}"], "path": ["vendors", "{{vendor_id}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🏆 Auctions",
+      "item": [
+        {
+          "name": "List Active Auctions",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/auctions?active_only=true&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["auctions"],
+              "query": [
+                { "key": "active_only", "value": "true" },
+                { "key": "limit", "value": "20" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Auction by ID",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/auctions/{{auction_id}}", "host": ["{{base_url}}"], "path": ["auctions", "{{auction_id}}"] }
+          }
+        },
+        {
+          "name": "Create Auction (vendor token)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var json = pm.response.json();",
+                  "if (json.id) pm.collectionVariables.set('auction_id', json.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{vendor_token}}", "type": "string" }]
+            },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"listing_id\": {{listing_id}},\n  \"start_price\": 3000,\n  \"reserve_price\": 500,\n  \"ends_at\": \"2026-05-23T23:59:00\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/auctions", "host": ["{{base_url}}"], "path": ["auctions"] }
+          }
+        },
+        {
+          "name": "Place Bid ⭐",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 750\n}"
+            },
+            "url": { "raw": "{{base_url}}/auctions/{{auction_id}}/bid", "host": ["{{base_url}}"], "path": ["auctions", "{{auction_id}}", "bid"] }
+          }
+        },
+        {
+          "name": "End Auction (vendor token)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{vendor_token}}", "type": "string" }]
+            },
+            "method": "POST",
+            "url": { "raw": "{{base_url}}/auctions/{{auction_id}}/end", "host": ["{{base_url}}"], "path": ["auctions", "{{auction_id}}", "end"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🚴 Drivers & Deliveries",
+      "item": [
+        {
+          "name": "Register as Driver",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"vehicle_type\": \"BICYCLE\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/drivers/register", "host": ["{{base_url}}"], "path": ["drivers", "register"] }
+          }
+        },
+        {
+          "name": "Get My Driver Profile",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/drivers/me", "host": ["{{base_url}}"], "path": ["drivers", "me"] }
+          }
+        },
+        {
+          "name": "Update Driver Location",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"latitude\": 43.2220,\n  \"longitude\": 76.8512,\n  \"status\": \"AVAILABLE\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/drivers/me/location", "host": ["{{base_url}}"], "path": ["drivers", "me", "location"] }
+          }
+        },
+        {
+          "name": "Get Nearby Drivers",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/drivers/nearby?lat=43.2220&lng=76.8512&radius_km=5",
+              "host": ["{{base_url}}"],
+              "path": ["drivers", "nearby"],
+              "query": [
+                { "key": "lat", "value": "43.2220" },
+                { "key": "lng", "value": "76.8512" },
+                { "key": "radius_km", "value": "5" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Assign Driver to Order (admin token)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{admin_token}}", "type": "string" }]
+            },
+            "method": "POST",
+            "url": { "raw": "{{base_url}}/drivers/assign/{{order_id}}", "host": ["{{base_url}}"], "path": ["drivers", "assign", "{{order_id}}"] }
+          }
+        },
+        {
+          "name": "My Deliveries",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/deliveries/my", "host": ["{{base_url}}"], "path": ["deliveries", "my"] }
+          }
+        },
+        {
+          "name": "Update Delivery Status",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"EN_ROUTE_PICKUP\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/deliveries/{{delivery_id}}/status", "host": ["{{base_url}}"], "path": ["deliveries", "{{delivery_id}}", "status"] }
+          }
+        },
+        {
+          "name": "Route Optimization",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/drivers/route-optimize", "host": ["{{base_url}}"], "path": ["drivers", "route-optimize"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "👑 Admin",
+      "item": [
+        {
+          "name": "Platform Stats ⭐",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{admin_token}}", "type": "string" }]
+            },
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/admin/stats", "host": ["{{base_url}}"], "path": ["admin", "stats"] }
+          }
+        },
+        {
+          "name": "List All Users",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{admin_token}}", "type": "string" }]
+            },
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/admin/users?limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "users"],
+              "query": [
+                { "key": "limit", "value": "20" },
+                { "key": "role", "value": "", "disabled": true },
+                { "key": "is_active", "value": "", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get User by ID",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{admin_token}}", "type": "string" }]
+            },
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/admin/users/{{user_id}}", "host": ["{{base_url}}"], "path": ["admin", "users", "{{user_id}}"] }
+          }
+        },
+        {
+          "name": "Update User",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{admin_token}}", "type": "string" }]
+            },
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"is_active\": true,\n  \"role\": \"customer\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/admin/users/{{user_id}}", "host": ["{{base_url}}"], "path": ["admin", "users", "{{user_id}}"] }
+          }
+        },
+        {
+          "name": "Suspend / Activate User",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{admin_token}}", "type": "string" }]
+            },
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"suspend\": true\n}"
+            },
+            "url": { "raw": "{{base_url}}/admin/users/{{user_id}}/suspend", "host": ["{{base_url}}"], "path": ["admin", "users", "{{user_id}}", "suspend"] }
+          }
+        },
+        {
+          "name": "List All Vendors",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{admin_token}}", "type": "string" }]
+            },
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/admin/vendors?limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "vendors"],
+              "query": [
+                { "key": "limit", "value": "20" },
+                { "key": "is_approved", "value": "", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Approve Vendor ⭐",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{admin_token}}", "type": "string" }]
+            },
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"is_approved\": true\n}"
+            },
+            "url": { "raw": "{{base_url}}/admin/vendors/{{vendor_id}}/approve", "host": ["{{base_url}}"], "path": ["admin", "vendors", "{{vendor_id}}", "approve"] }
+          }
+        },
+        {
+          "name": "List All Listings (admin)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{admin_token}}", "type": "string" }]
+            },
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/admin/listings?limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "listings"],
+              "query": [
+                { "key": "limit", "value": "20" },
+                { "key": "status", "value": "", "disabled": true },
+                { "key": "vendor_id", "value": "", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Any Listing (admin)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{admin_token}}", "type": "string" }]
+            },
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"ACTIVE\",\n  \"current_price\": 1000\n}"
+            },
+            "url": { "raw": "{{base_url}}/admin/listings/{{listing_id}}", "host": ["{{base_url}}"], "path": ["admin", "listings", "{{listing_id}}"] }
+          }
+        },
+        {
+          "name": "List All Orders (admin)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{admin_token}}", "type": "string" }]
+            },
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/admin/orders?limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "orders"],
+              "query": [
+                { "key": "limit", "value": "20" },
+                { "key": "status", "value": "", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Order Details (admin)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{admin_token}}", "type": "string" }]
+            },
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/admin/orders/{{order_id}}", "host": ["{{base_url}}"], "path": ["admin", "orders", "{{order_id}}"] }
+          }
+        },
+        {
+          "name": "Trigger Price Decay ⭐",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{admin_token}}", "type": "string" }]
+            },
+            "method": "POST",
+            "url": { "raw": "{{base_url}}/admin/trigger-price-decay", "host": ["{{base_url}}"], "path": ["admin", "trigger-price-decay"] }
+          }
+        },
+        {
+          "name": "Seed Reset (re-seed demo data)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{admin_token}}", "type": "string" }]
+            },
+            "method": "POST",
+            "url": { "raw": "{{base_url}}/admin/seed-reset", "host": ["{{base_url}}"], "path": ["admin", "seed-reset"] }
+          }
+        },
+        {
+          "name": "System Logs ⭐",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{admin_token}}", "type": "string" }]
+            },
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/admin/logs?limit=50",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "logs"],
+              "query": [
+                { "key": "limit", "value": "50" },
+                { "key": "level", "value": "", "disabled": true },
+                { "key": "endpoint", "value": "", "disabled": true },
+                { "key": "date_from", "value": "", "disabled": true }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "⚙️ Jobs (Celery)",
+      "item": [
+        {
+          "name": "Jobs Status ⭐",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{admin_token}}", "type": "string" }]
+            },
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/jobs/status", "host": ["{{base_url}}"], "path": ["jobs", "status"] }
+          }
+        },
+        {
+          "name": "Get Task Result by ID",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{admin_token}}", "type": "string" }]
+            },
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/jobs/TASK_ID_HERE",
+              "host": ["{{base_url}}"],
+              "path": ["jobs", "TASK_ID_HERE"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

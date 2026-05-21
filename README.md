@@ -2,8 +2,27 @@
 
 **Food Waste Reduction Marketplace** — production-grade backend + frontend system.
 
-Vendors list surplus food at discounted prices. Customers buy it before it expires.  
+Vendors list surplus food at discounted prices. Customers buy it before it expires.
 Everyone wins: less waste, cheaper meals.
+
+---
+
+## Live Deployment
+
+| Service | URL |
+|---------|-----|
+| Frontend | https://foodwaste-1-fe33.onrender.com |
+| API (production) | https://foodwaste-gcjn.onrender.com |
+| Swagger UI | https://foodwaste-gcjn.onrender.com/docs |
+| ReDoc | https://foodwaste-gcjn.onrender.com/redoc |
+
+**Demo accounts (seeded on first deploy):**
+
+| Email | Password | Role |
+|-------|----------|------|
+| admin@test.kz | Secure123! | admin |
+| vendor@test.kz | Secure123! | vendor |
+| customer@test.kz | Secure123! | customer |
 
 ---
 
@@ -13,36 +32,32 @@ Everyone wins: less waste, cheaper meals.
 |-------|-----------|
 | Backend | FastAPI 0.111 (async) |
 | ORM | SQLModel + SQLAlchemy (async) |
-| Database | PostgreSQL 16 |
-| Cache / Queue Broker | Redis 7 |
+| Database | PostgreSQL 16 (Render managed) |
+| Cache / Queue Broker | Redis 7 (Upstash TLS) |
 | Background Workers | Celery 5.3 + Celery Beat |
 | Auth | JWT (HS256) + Redis-backed refresh tokens |
 | Password | bcrypt |
 | Frontend | React 18 + Vite + Tailwind CSS |
 | Tests | pytest + pytest-asyncio |
 | Containerization | Docker + Docker Compose |
+| Platform | Render.com |
 
 ---
 
 ## Quick Start (Docker)
 
 ```bash
-# 1. Clone and enter
-git clone <repo-url>
+git clone https://github.com/Har1se/foodwaste.git
 cd rescuebite-api
 
-# 2. Configure environment
 cp .env.example .env
-# Edit .env — set SECRET_KEY, SMTP_*, etc.
+# Edit .env — set SECRET_KEY, DATABASE_URL, REDIS_URL
 
-# 3. Start all services
 docker compose up --build
-
-# 4. Run migrations
-docker compose exec api alembic upgrade head
 
 # API:     http://localhost:8000
 # Swagger: http://localhost:8000/docs
+# Frontend: http://localhost:3000
 ```
 
 ---
@@ -67,7 +82,7 @@ uvicorn app.main:app --reload --port 8000
 # New terminal — Celery worker
 celery -A app.tasks.celery_app worker --loglevel=info
 
-# New terminal — Celery Beat
+# New terminal — Celery Beat scheduler
 celery -A app.tasks.celery_app beat --loglevel=info
 ```
 
@@ -76,14 +91,12 @@ celery -A app.tasks.celery_app beat --loglevel=info
 ```bash
 cd frontend
 npm install
-npm run dev   # http://localhost:3000
+VITE_API_URL=http://localhost:8000 npm run dev   # http://localhost:3000
 ```
 
 ---
 
 ## Environment Variables
-
-Copy `.env.example` and fill in the values:
 
 ```env
 DATABASE_URL=postgresql+asyncpg://rescuebite:rescuebite@localhost:5432/rescuebite_db
@@ -92,40 +105,107 @@ REDIS_URL=redis://localhost:6379/0
 # REQUIRED: at least 32 characters
 SECRET_KEY=your-very-long-random-secret-key-here-at-least-32-chars
 
-ACCESS_TOKEN_EXPIRE_MINUTES=15
+ACCESS_TOKEN_EXPIRE_MINUTES=43200
 REFRESH_TOKEN_EXPIRE_DAYS=7
 
-# Email (e.g. Resend, SendGrid, Brevo)
-SMTP_HOST=smtp.resend.com
+# Email (Gmail / SendGrid / Yandex)
+SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
-SMTP_USER=resend
-SMTP_PASSWORD=your-api-key
+SMTP_USER=your@gmail.com
+SMTP_PASSWORD=your-app-password
 SMTP_FROM=noreply@rescuebite.kz
 
 FRONTEND_URL=http://localhost:3000
+CORS_ORIGINS=http://localhost:3000,http://localhost:8000
 
 ENVIRONMENT=development
 DEBUG=true
-ALLOWED_ORIGINS=["http://localhost:3000","http://localhost:8000"]
 ```
 
 ---
 
-## API Documentation
+## API Overview
 
-- **Swagger UI**: http://localhost:8000/docs
-- **ReDoc**: http://localhost:8000/redoc
-- **OpenAPI contract**: `openapi.yaml` in project root
+### Auth (`/auth`)
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/auth/register` | Register → sends OTP to email |
+| POST | `/auth/verify-email` | Verify OTP code |
+| POST | `/auth/login` | Login → returns JWT tokens |
+| POST | `/auth/refresh` | Rotate refresh token |
+| POST | `/auth/logout` | Revoke session |
+| GET | `/auth/me` | Get own profile |
+| PATCH | `/auth/me` | Update profile |
+| PATCH | `/auth/me/password` | Change password |
 
----
+### Listings (`/listings`)
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/listings` | Browse active listings (category, cursor pagination) |
+| GET | `/listings/{id}` | Get single listing |
+| POST | `/listings` | Create listing (vendor only) |
+| PATCH | `/listings/{id}` | Update own listing |
+| DELETE | `/listings/{id}` | Delete own listing |
+| GET | `/listings/vendor/my-listings` | Vendor's own listings |
+| POST | `/listings/allergen-check` | Check ingredients against allergen profile |
 
-## Authentication Flow
+### Orders (`/orders`)
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/orders` | Place order (atomic, oversell-safe) |
+| GET | `/orders` | List own orders |
+| GET | `/orders/{id}` | Get order details |
+| PATCH | `/orders/{id}/status` | Update order status |
 
-```
-Register → OTP to email → POST /auth/verify-email → Login → Bearer token → Refresh → Logout
-```
+### Payments (`/payments`)
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/payments/{id}/initiate` | Initiate Kaspi Pay |
+| POST | `/payments/{id}/simulate-success` | Simulate payment (demo) |
+| GET | `/payments/{id}/status` | Check payment status |
 
-All protected endpoints require `Authorization: Bearer <access_token>`.
+### Auctions (`/auctions`)
+Lowest unique bid wins reverse auction.
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/auctions` | List active auctions |
+| POST | `/auctions` | Create auction |
+| GET | `/auctions/{id}` | Get auction + bid count |
+| POST | `/auctions/{id}/bid` | Place bid |
+| POST | `/auctions/{id}/end` | End auction manually |
+
+### Vendors (`/vendors`)
+| POST | `/vendors/register` | Submit vendor application |
+| GET | `/vendors/me` | Own vendor profile |
+| GET | `/vendors/{id}` | Public vendor profile |
+
+### Drivers (`/drivers`, `/deliveries`)
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/drivers/register` | Register as driver |
+| PATCH | `/drivers/me/location` | Update GPS location |
+| GET | `/drivers/nearby` | Find nearby available drivers |
+| POST | `/drivers/assign/{order_id}` | Assign driver to order |
+| GET | `/drivers/route-optimize` | Nearest-neighbor route for driver |
+| GET | `/deliveries/my` | Driver's delivery queue |
+| PATCH | `/deliveries/{id}/status` | Update delivery status |
+
+### Admin (`/admin`) — requires admin role
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/admin/stats` | Platform statistics |
+| GET/PATCH/DELETE | `/admin/users/{id}` | User management |
+| GET/PATCH/DELETE | `/admin/vendors/{id}` | Vendor management |
+| PATCH | `/admin/vendors/{id}/approve` | Approve/reject vendor |
+| GET/PATCH/DELETE | `/admin/listings/{id}` | Full listing control |
+| GET | `/admin/orders` | All orders |
+| GET | `/admin/logs` | System request logs |
+| POST | `/admin/trigger-price-decay` | Manual price decay trigger |
+| POST | `/admin/seed-reset` | Re-seed demo data |
+
+### Jobs (`/jobs`) — requires admin role
+| GET | `/jobs/status` | Celery worker + Beat schedule |
+| GET | `/jobs/{task_id}` | Specific task result |
 
 ---
 
@@ -133,8 +213,9 @@ All protected endpoints require `Authorization: Bearer <access_token>`.
 
 | Role | Capabilities |
 |------|-------------|
-| `customer` | Browse listings, place orders, pay, view own orders |
-| `vendor` | Manage own listings + view vendor orders |
+| `customer` | Browse listings, place orders, pay, view own orders, bid on auctions |
+| `vendor` | Manage own listings, view vendor orders, create auctions |
+| `driver` | Register, update location, manage own deliveries |
 | `admin` | Full CRUD on all resources + stats + job control |
 
 ---
@@ -143,28 +224,31 @@ All protected endpoints require `Authorization: Bearer <access_token>`.
 
 ### 1. Food State Machine (Celery Beat — every 72h)
 ```
-ACTIVE → DISCOUNTED (days_active ≥ 30, 10% price decay)
-DISCOUNTED → FREE (price hits 0)
-FREE → COMPOST (pickup_window_end passed)
-any → SOLD_OUT (quantity_available = 0)
+ACTIVE → DISCOUNTED  (days_active ≥ 30, 10% price decay per cycle)
+DISCOUNTED → FREE    (current_price hits 0)
+FREE → COMPOST       (pickup_window_end passed)
+any → SOLD_OUT       (quantity_available = 0)
 ```
 
-### 2. Allergen Parser
-`POST /listings/allergen-check` → detects allergens in ingredient list against user profile.
-
-### 3. Atomic Order (2-layer oversell prevention)
-1. Redis soft lock (5-min TTL)
+### 2. Atomic Order (2-layer oversell prevention)
+1. Redis soft lock (5-min TTL per listing slot)
 2. PostgreSQL `SELECT FOR UPDATE` row lock + atomic decrement
 
-### 4. Payment Flow
+### 3. Allergen Parser
+`POST /listings/allergen-check` — detects allergens in ingredients list, compares with user's allergen profile, returns safe/unsafe result.
+
+### 4. Reverse Auction
+Lowest **unique** bid at deadline wins. Standard auctions: highest bid wins. Reverse: the rarest low price wins.
+
+### 5. Payment Flow
 ```
-POST /payments/{order_id}/initiate         → Kaspi URL
-POST /payments/{order_id}/simulate-success → dev/demo mode
+POST /payments/{id}/initiate         → Kaspi Pay redirect URL (production)
+POST /payments/{id}/simulate-success → instant success (demo/dev)
 ```
 
 ---
 
-## Email Notifications (4 real events)
+## Email Notifications
 
 | Event | Trigger |
 |-------|---------|
@@ -173,7 +257,7 @@ POST /payments/{order_id}/simulate-success → dev/demo mode
 | Vendor approved | Admin approves vendor |
 | Password reset link | User requests reset |
 
-All emails sent via Celery queue — non-blocking API.
+Sent via Celery queue — non-blocking.
 
 ---
 
@@ -182,7 +266,7 @@ All emails sent via Celery queue — non-blocking API.
 ```bash
 pytest tests/ -v
 
-# With coverage
+# With coverage report
 pytest tests/ -v --cov=app --cov-report=term-missing
 ```
 
@@ -193,10 +277,10 @@ Uses SQLite in-memory + mocked Redis/Celery — no external services needed.
 ## Database Migrations
 
 ```bash
-alembic upgrade head      # apply all
-alembic current           # show current revision
-alembic history           # show migration history
-alembic revision --autogenerate -m "description"  # new migration
+alembic upgrade head                          # apply all migrations
+alembic current                               # current revision
+alembic history                               # migration history
+alembic revision --autogenerate -m "message"  # new migration
 ```
 
 ---
@@ -204,39 +288,86 @@ alembic revision --autogenerate -m "description"  # new migration
 ## Background Jobs
 
 ```bash
-# Worker
 celery -A app.tasks.celery_app worker --loglevel=info
-
-# Beat scheduler
 celery -A app.tasks.celery_app beat --loglevel=info
 ```
 
-| Job | Schedule | Task |
-|-----|----------|------|
-| price_decay_task | Every 72 hours | Apply price decay to aging listings |
+| Job | Schedule | Description |
+|-----|----------|-------------|
+| price_decay_task | Every 72 hours | Age listings, decay price, change status |
+| process_expired_auctions | Every 5 minutes | End auctions past deadline |
 
-Monitor via API (admin token required):
+Monitor (admin token required):
 ```
-GET  /jobs/status        — queue overview, workers, Beat schedule
-GET  /jobs/{task_id}     — specific task result
-POST /admin/trigger-price-decay  — manual trigger
+GET  /jobs/status               — workers, active tasks, Beat schedule
+POST /admin/trigger-price-decay — manual trigger
 ```
 
 ---
 
 ## Frontend Pages
 
-| Path | Description | Role |
-|------|-------------|------|
+| Path | Description | Access |
+|------|-------------|--------|
 | `/` | Marketplace — browse food listings | Public |
 | `/login` | Login | Public |
 | `/register` | Register (customer or vendor) | Public |
 | `/verify-email` | OTP verification | Public |
-| `/forgot-password` | Request password reset | Public |
+| `/forgot-password` | Password reset request | Public |
 | `/reset-password` | Set new password | Public |
+| `/auctions` | Active auctions | Public |
 | `/orders` | My orders + Kaspi payment | Customer |
 | `/vendor` | Vendor dashboard — listings + orders | Vendor |
 | `/admin` | Admin panel — full management | Admin |
+
+---
+
+## Project Structure
+
+```
+rescuebite-api/
+├── app/
+│   ├── main.py              # FastAPI factory + lifespan + middleware
+│   ├── config.py            # Pydantic Settings (validates on boot)
+│   ├── database.py          # Async SQLAlchemy engine
+│   ├── demo_seed.py         # Auto-seed demo data
+│   ├── core/
+│   │   ├── dependencies.py  # JWT auth + RBAC decorators
+│   │   ├── security.py      # bcrypt + JWT token creation
+│   │   ├── redis.py         # Rate limiting + token storage
+│   │   └── pagination.py    # Cursor-based pagination
+│   ├── models/              # SQLModel ORM models
+│   ├── schemas/             # Pydantic request/response schemas
+│   ├── routers/             # FastAPI route handlers
+│   │   ├── auth.py
+│   │   ├── listings.py
+│   │   ├── orders.py
+│   │   ├── vendors.py
+│   │   ├── payments.py
+│   │   ├── auctions.py
+│   │   ├── drivers.py
+│   │   ├── jobs.py
+│   │   └── admin.py
+│   ├── services/            # Business logic layer
+│   └── tasks/               # Celery tasks
+│       ├── celery_app.py
+│       ├── price_decay.py
+│       ├── auction_tasks.py
+│       └── email_tasks.py
+├── frontend/                # React 18 + Vite + Tailwind CSS
+│   └── src/
+│       ├── api/client.js    # Axios with auto-refresh interceptor
+│       ├── contexts/        # AuthContext
+│       ├── pages/           # Home, Login, Register, Orders, Vendor, Admin, Auctions
+│       └── components/      # Navbar, ListingCard, Modal
+├── migrations/              # Alembic migration history (001–004)
+├── tests/                   # pytest async test suite (62%+ coverage)
+├── Dockerfile
+├── docker-compose.yml
+├── .env.example
+├── RescueBite.postman_collection.json  # Import into Postman
+└── DEPLOYED_URL.txt
+```
 
 ---
 
@@ -249,47 +380,7 @@ POST /admin/trigger-price-decay  — manual trigger
 | `redis` | 6379 | Redis 7 |
 | `worker` | — | Celery worker |
 | `beat` | — | Celery Beat scheduler |
-
----
-
-## Project Structure
-
-```
-rescuebite-api/
-├── app/
-│   ├── main.py              # FastAPI factory + lifespan
-│   ├── config.py            # Pydantic Settings (validates on boot)
-│   ├── database.py          # Async SQLAlchemy engine
-│   ├── core/
-│   │   ├── dependencies.py  # JWT auth + RBAC decorators
-│   │   ├── security.py      # bcrypt + JWT token creation
-│   │   ├── redis.py         # Rate limiting + token storage
-│   │   └── pagination.py    # Cursor-based pagination
-│   ├── models/              # SQLModel ORM (User, Vendor, Listing, Order, Payment)
-│   ├── schemas/             # Pydantic request/response schemas
-│   ├── routers/
-│   │   ├── auth.py          # Register, verify, login, refresh, logout, profile
-│   │   ├── listings.py      # Browse, create, update, delete, allergen-check
-│   │   ├── orders.py        # Place, list, get, update status
-│   │   ├── vendors.py       # Register vendor, get profile
-│   │   ├── payments.py      # Kaspi Pay integration + simulation
-│   │   ├── jobs.py          # Celery queue visibility
-│   │   └── admin.py         # Full admin CRUD + stats + price decay trigger
-│   ├── services/            # Business logic layer
-│   └── tasks/               # Celery tasks (email, price decay)
-├── frontend/                # React 18 + Vite + Tailwind CSS
-│   └── src/
-│       ├── api/client.js    # Axios with auto-refresh interceptor
-│       ├── contexts/        # AuthContext
-│       ├── pages/           # Home, Login, Register, Orders, Vendor, Admin
-│       └── components/      # Navbar, ListingCard, Modal
-├── migrations/              # Alembic migration history
-├── tests/                   # pytest async test suite
-├── openapi.yaml             # Complete OpenAPI 3.1 contract
-├── docker-compose.yml
-├── Dockerfile
-└── .env.example
-```
+| `flower` | 5555 | Celery monitoring UI |
 
 ---
 
@@ -297,17 +388,43 @@ rescuebite-api/
 
 Import `RescueBite.postman_collection.json` for all endpoints pre-configured.
 
+Collection variables auto-populated after login:
+- `access_token` — set after "Login as Customer"
+- `vendor_token` — set after "Login as Vendor"
+- `admin_token` — set after "Login as Admin"
+
 ---
 
-## Defense Demo Flow
+## Defense Demo Checklist
 
-1. `docker compose up` → wait for all green
-2. `alembic upgrade head`
-3. Open Swagger: http://localhost:8000/docs
-4. Open Frontend: http://localhost:3000
-5. Register → receive OTP email → verify → Login
-6. Browse marketplace, place order, simulate Kaspi payment, show pickup token
-7. Switch to vendor account → create listing
-8. Switch to admin → approve vendor, view stats, trigger price decay
-9. Show Celery queue: `GET /jobs/status`
-10. `pytest tests/ -v` — all green
+### Setup
+- [ ] Open https://foodwaste-1-fe33.onrender.com
+- [ ] Open https://foodwaste-gcjn.onrender.com/docs
+- [ ] Import `RescueBite.postman_collection.json`
+
+### Customer Flow
+- [ ] Register new account → receive OTP → verify email
+- [ ] Login → JWT token returned
+- [ ] Browse marketplace → filter by category → search
+- [ ] Place order → show atomic stock decrement
+- [ ] Simulate Kaspi payment → show pickup token in order
+
+### Vendor Flow
+- [ ] Login as vendor@test.kz
+- [ ] Open vendor dashboard → see own listings
+- [ ] Create new listing with price, quantity, category, pickup window
+- [ ] See new listing appear on marketplace
+
+### Admin Flow
+- [ ] Login as admin@test.kz
+- [ ] GET /admin/stats → platform overview
+- [ ] View users list, inspect vendor application
+- [ ] Approve a vendor
+- [ ] POST /admin/trigger-price-decay → show state machine
+- [ ] GET /admin/logs → show request audit trail
+
+### Advanced Features
+- [ ] POST /listings/allergen-check → demonstrate allergen parser
+- [ ] Create auction → place bids → end auction → show winner
+- [ ] GET /jobs/status → show Celery workers + Beat schedule
+- [ ] pytest tests/ -v → all tests green
