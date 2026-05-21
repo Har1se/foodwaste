@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 
 from app.config import settings
 from app.core.logging_config import configure_logging
@@ -223,6 +223,11 @@ app.include_router(payments.router)
 app.include_router(jobs.router)
 app.include_router(auctions.router)
 app.include_router(drivers.router)
+
+
+@app.get("/", include_in_schema=False)
+async def root():
+    return RedirectResponse(url="/docs")
 
 
 @app.get("/health", tags=["Health"])
