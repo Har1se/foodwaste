@@ -90,7 +90,7 @@ async def get_nearby_drivers(
     result = await session.execute(
         select(Driver).where(
             Driver.status == DriverStatus.AVAILABLE,
-            Driver.is_verified == True,
+            Driver.is_verified.is_(True),
             Driver.current_lat.isnot(None),
             Driver.current_lng.isnot(None),
         )
@@ -151,7 +151,7 @@ async def assign_driver_to_order(
     drivers_r = await session.execute(
         select(Driver).where(
             Driver.status == DriverStatus.AVAILABLE,
-            Driver.is_verified == True,
+            Driver.is_verified.is_(True),
             Driver.current_lat.isnot(None),
             Driver.current_lng.isnot(None),
         )

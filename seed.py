@@ -48,9 +48,9 @@ async def get_or_create_user(session, email, password, role, full_name):
 
 async def seed():
     async with AsyncSessionLocal() as session:
-        admin = await get_or_create_user(session, "admin@test.kz", "Secure123!", UserRole.ADMIN, "Demo Admin")
+        await get_or_create_user(session, "admin@test.kz", "Secure123!", UserRole.ADMIN, "Demo Admin")
         vendor_user = await get_or_create_user(session, "vendor@test.kz", "Secure123!", UserRole.VENDOR, "Green Cafe")
-        customer = await get_or_create_user(session, "customer@test.kz", "Secure123!", UserRole.CUSTOMER, "Demo Customer")
+        await get_or_create_user(session, "customer@test.kz", "Secure123!", UserRole.CUSTOMER, "Demo Customer")
 
         result = await session.execute(select(Vendor).where(Vendor.user_id == vendor_user.id))
         vendor = result.scalars().first()
