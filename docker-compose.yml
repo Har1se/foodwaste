@@ -155,7 +155,7 @@ services:
     build: .
     restart: unless-stopped
     ports:
-      - "5555:${PORT:-5555}"
+      - "5555:5555"
     environment:
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
       DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://rescuebite:rescuebite@postgres:5432/rescuebite_db}
@@ -164,8 +164,7 @@ services:
     depends_on:
       - redis
       - worker
-    # PORT is set by Dokku; falls back to 5555 locally
-    command: celery -A app.tasks.celery_app.celery_app flower --port=${PORT:-5555}
+    command: celery -A app.tasks.celery_app.celery_app flower --port=5555
 
 volumes:
   postgres_data:

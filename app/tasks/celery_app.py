@@ -6,6 +6,11 @@ celery_app = Celery(
     "rescuebite",
     broker=settings.REDIS_URL,
     backend=settings.REDIS_URL,
+    include=[
+        "app.tasks.price_decay",
+        "app.tasks.auction_tasks",
+        "app.tasks.email_tasks",
+    ],
 )
 
 celery_app.conf.beat_schedule = {
