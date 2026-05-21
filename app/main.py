@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse
 
 from app.config import settings
 from app.core.logging_config import configure_logging
-from app.database import AsyncSessionLocal, create_db_and_tables
+from app.database import AsyncSessionLocal, create_db_and_tables, engine
 from app.core.redis import get_redis, close_redis
 
 # Import all models so SQLModel picks them up for table creation
@@ -71,6 +71,7 @@ async def lifespan(app: FastAPI):
 
     # ── Shutdown ──────────────────────────────────────────────────────────────
     await close_redis()
+    await engine.dispose()
     logger.info("RescueBite API shutdown complete")
 
 

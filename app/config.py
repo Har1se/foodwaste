@@ -44,9 +44,14 @@ class Settings(BaseSettings):
 
     @field_validator("SECRET_KEY")
     @classmethod
-    def secret_key_length(cls, v: str) -> str:
+    def secret_key_must_be_set(cls, v: str) -> str:
         if len(v) < 32:
             raise ValueError("SECRET_KEY must be at least 32 characters")
+        if v.startswith("CHANGE_ME"):
+            raise ValueError(
+                "SECRET_KEY is still the default placeholder — "
+                "set a real random value in .env or environment variables"
+            )
         return v
 
     model_config = {"env_file": ".env"}
