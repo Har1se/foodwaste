@@ -70,7 +70,7 @@ async def verify_email(email: str, code: str, session: AsyncSession) -> None:
 
     result = await session.execute(
         select(OTPCode)
-        .where(OTPCode.user_id == user.id, OTPCode.used == False)
+        .where(OTPCode.user_id == user.id, ~OTPCode.used)
         .order_by(OTPCode.created_at.desc())
     )
     otp = result.scalars().first()

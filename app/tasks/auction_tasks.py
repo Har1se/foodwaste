@@ -45,22 +45,27 @@ async def _process():
             auction.status = AuctionStatus.ENDED
             auction.updated_at = now
 
+            from app.models.user import User
+            from app.tasks.email_tasks import send_auction_won_email, send_auction_lost_email
+
+            winner_user_id = winner_bid.bidder_id if winner_bid else None
+
             if winner_bid:
                 auction.winner_user_id = winner_bid.bidder_id
                 auction.winning_bid_amount = winner_bid.amount
 
-                from app.models.user import User
-                ur = await session.execute(
-                    select(User).where(User.id == winner_bid.bidder_id)
-                )
+                ur = await session.execute(select(User).where(User.id == winner_bid.bidder_id))
                 winner_user = ur.scalars().first()
                 if winner_user:
-                    from app.tasks.email_tasks import send_auction_won_email
-                    send_auction_won_email.delay(
-                        winner_user.email,
-                        auction.id,
-                        winner_bid.amount,
-                    )
+                    send_auction_won_email.delay(winner_user.email, auction.id, winner_bid.amount)
+
+            # Notify all losing bidders
+            loser_ids = {b.bidder_id for b in bids if b.bidder_id != winner_user_id}
+            for loser_id in loser_ids:
+                lr = await session.execute(select(User).where(User.id == loser_id))
+                loser = lr.scalars().first()
+                if loser:
+                    send_auction_lost_email.delay(loser.email, auction.id)
 
         await session.commit()
 

@@ -47,6 +47,9 @@ email_tasks_module.send_password_reset_email = _NoOpTask()
 email_tasks_module.send_order_confirmation_email = _NoOpTask()
 email_tasks_module.send_vendor_approved_email = _NoOpTask()
 email_tasks_module.send_auction_won_email = _NoOpTask()
+email_tasks_module.send_auction_lost_email = _NoOpTask()
+email_tasks_module.send_new_listing_email = _NoOpTask()
+email_tasks_module.send_driver_assignment_email = _NoOpTask()
 
 # Also patch the router-level imports
 import app.routers.auth as auth_router_module
@@ -58,6 +61,12 @@ orders_router_module.send_order_confirmation_email = _NoOpTask()
 
 import app.routers.admin as admin_router_module
 admin_router_module.send_vendor_approved_email = _NoOpTask()
+
+import app.routers.listings as listings_router_module
+listings_router_module.send_new_listing_email = _NoOpTask()
+
+import app.routers.drivers as drivers_router_module
+drivers_router_module.send_driver_assignment_email = _NoOpTask()
 
 # ── Auto-verify users in tests (skip email verification flow) ─────────────────
 _original_register_user = auth_svc.register_user

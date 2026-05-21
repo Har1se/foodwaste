@@ -1,8 +1,13 @@
 import enum
 from datetime import datetime, timezone
-from typing import Optional, List
+from typing import TYPE_CHECKING, Optional, List
 from sqlmodel import SQLModel, Field, Column, Relationship
 import sqlalchemy as sa
+
+if TYPE_CHECKING:
+    from app.models.user import User
+    from app.models.vendor import Vendor
+    from app.models.listing import Listing
 
 
 def _utcnow() -> datetime:

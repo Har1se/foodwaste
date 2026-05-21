@@ -1,6 +1,11 @@
 from datetime import datetime, timezone
-from typing import Optional, List
+from typing import TYPE_CHECKING, Optional, List
 from sqlmodel import SQLModel, Field, Relationship
+
+if TYPE_CHECKING:
+    from app.models.user import User
+    from app.models.listing import Listing
+    from app.models.order import Order
 
 
 def _utcnow() -> datetime:

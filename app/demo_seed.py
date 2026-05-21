@@ -457,7 +457,7 @@ async def auto_seed(session: AsyncSession) -> int:
     """Seed demo users and listings. Returns count of created listings."""
     now = _utcnow()
 
-    admin = await _get_or_create_user(
+    await _get_or_create_user(
         session, "admin@test.kz", "Secure123!", UserRole.ADMIN, "Demo Admin"
     )
     vendor_user = await _get_or_create_user(

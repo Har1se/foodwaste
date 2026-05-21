@@ -103,6 +103,69 @@ def build_auction_won_email(auction_id: int, winning_amount: int) -> tuple[str, 
     return subject, html
 
 
+def build_new_listing_email(
+    title: str,
+    current_price: int,
+    vendor_name: str,
+    category: str | None,
+) -> tuple[str, str]:
+    subject = f"RescueBite — Новое предложение: {title}"
+    cat_label = category.capitalize() if category else "Еда"
+    price_label = "Бесплатно!" if current_price == 0 else f"{current_price:,.0f} ₸"
+    html = f"""
+    <div style="font-family:sans-serif;max-width:500px;margin:auto">
+      <h2 style="color:#2d7a4f">🍱 Новое предложение на RescueBite!</h2>
+      <table style="width:100%;border-collapse:collapse;margin:16px 0">
+        <tr><td style="padding:8px;color:#555">Блюдо:</td><td style="padding:8px;font-weight:bold">{title}</td></tr>
+        <tr style="background:#f9f9f9"><td style="padding:8px;color:#555">Категория:</td><td style="padding:8px">{cat_label}</td></tr>
+        <tr><td style="padding:8px;color:#555">Цена:</td><td style="padding:8px;font-weight:bold;color:#2d7a4f">{price_label}</td></tr>
+        <tr style="background:#f9f9f9"><td style="padding:8px;color:#555">От:</td><td style="padding:8px">{vendor_name}</td></tr>
+      </table>
+      <a href="{settings.FRONTEND_URL}" style="display:inline-block;padding:12px 24px;background:#2d7a4f;color:#fff;text-decoration:none;border-radius:6px;margin:16px 0">Смотреть предложение →</a>
+      <p style="color:#888;font-size:12px">Спасаем еду вместе — спасибо, что с нами!</p>
+    </div>
+    """
+    return subject, html
+
+
+def build_driver_assignment_email(
+    order_id: int,
+    vendor_name: str,
+    vendor_address: str,
+    distance_km: float,
+) -> tuple[str, str]:
+    subject = f"RescueBite — Новый заказ #{order_id} назначен вам"
+    html = f"""
+    <div style="font-family:sans-serif;max-width:500px;margin:auto">
+      <h2 style="color:#2d7a4f">🚴 Новый заказ для доставки!</h2>
+      <p>Вам назначен заказ <strong>#{order_id}</strong>. Пожалуйста, заберите его как можно скорее.</p>
+      <table style="width:100%;border-collapse:collapse;margin:16px 0">
+        <tr><td style="padding:8px;color:#555">Заказ №:</td><td style="padding:8px;font-weight:bold">#{order_id}</td></tr>
+        <tr style="background:#f9f9f9"><td style="padding:8px;color:#555">Точка самовывоза:</td><td style="padding:8px">{vendor_name}</td></tr>
+        <tr><td style="padding:8px;color:#555">Адрес:</td><td style="padding:8px">{vendor_address}</td></tr>
+        <tr style="background:#f9f9f9"><td style="padding:8px;color:#555">Расстояние:</td><td style="padding:8px;color:#2d7a4f;font-weight:bold">{distance_km:.1f} км</td></tr>
+      </table>
+      <a href="{settings.FRONTEND_URL}/drivers" style="display:inline-block;padding:12px 24px;background:#2d7a4f;color:#fff;text-decoration:none;border-radius:6px;margin:16px 0">Открыть маршрут →</a>
+      <p style="color:#888;font-size:12px">Спасибо, что помогаете доставлять еду!</p>
+    </div>
+    """
+    return subject, html
+
+
+def build_auction_lost_email(auction_id: int) -> tuple[str, str]:
+    subject = f"RescueBite — Аукцион #{auction_id} завершён"
+    html = f"""
+    <div style="font-family:sans-serif;max-width:500px;margin:auto">
+      <h2 style="color:#d97706">Аукцион завершён</h2>
+      <p>Аукцион <strong>#{auction_id}</strong> завершён. На этот раз победила другая ставка.</p>
+      <p>Не расстраивайтесь — на платформе появляются новые лоты каждый день!</p>
+      <a href="{settings.FRONTEND_URL}/auctions" style="display:inline-block;padding:12px 24px;background:#2d7a4f;color:#fff;text-decoration:none;border-radius:6px;margin:16px 0">Смотреть другие аукционы →</a>
+      <p style="color:#888;font-size:12px">Спасибо за участие в борьбе с пищевыми отходами!</p>
+    </div>
+    """
+    return subject, html
+
+
 def build_vendor_approved_email(business_name: str) -> tuple[str, str]:
     subject = "RescueBite — Ваш аккаунт продавца одобрен!"
     html = f"""

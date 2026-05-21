@@ -6,6 +6,9 @@ from app.services.email_service import (
     build_order_confirmation_email,
     build_vendor_approved_email,
     build_auction_won_email,
+    build_new_listing_email,
+    build_driver_assignment_email,
+    build_auction_lost_email,
 )
 
 
@@ -49,6 +52,33 @@ def send_vendor_approved_email(self, email: str, business_name: str):
 def send_auction_won_email(self, email: str, auction_id: int, winning_amount: int):
     try:
         subject, html = build_auction_won_email(auction_id, winning_amount)
+        send_email(email, subject, html)
+    except Exception as exc:
+        raise self.retry(exc=exc)
+
+
+@celery_app.task(bind=True, max_retries=3, default_retry_delay=60, name="app.tasks.email_tasks.send_new_listing_email")
+def send_new_listing_email(self, email: str, title: str, current_price: int, vendor_name: str, category: str | None):
+    try:
+        subject, html = build_new_listing_email(title, current_price, vendor_name, category)
+        send_email(email, subject, html)
+    except Exception as exc:
+        raise self.retry(exc=exc)
+
+
+@celery_app.task(bind=True, max_retries=3, default_retry_delay=60, name="app.tasks.email_tasks.send_driver_assignment_email")
+def send_driver_assignment_email(self, email: str, order_id: int, vendor_name: str, vendor_address: str, distance_km: float):
+    try:
+        subject, html = build_driver_assignment_email(order_id, vendor_name, vendor_address, distance_km)
+        send_email(email, subject, html)
+    except Exception as exc:
+        raise self.retry(exc=exc)
+
+
+@celery_app.task(bind=True, max_retries=3, default_retry_delay=60, name="app.tasks.email_tasks.send_auction_lost_email")
+def send_auction_lost_email(self, email: str, auction_id: int):
+    try:
+        subject, html = build_auction_lost_email(auction_id)
         send_email(email, subject, html)
     except Exception as exc:
         raise self.retry(exc=exc)

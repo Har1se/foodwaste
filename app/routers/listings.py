@@ -120,6 +120,26 @@ async def create_listing(
 
     listing = await listing_service.create_listing(data, vendor, session)
     allergens = await _fetch_allergens(listing.id, session)
+
+    # Notify all verified customers (shelters) about the new listing
+    from app.models.user import UserRole as _UserRole
+    from app.tasks.email_tasks import send_new_listing_email
+    customers_r = await session.execute(
+        select(User).where(
+            User.role == _UserRole.CUSTOMER,
+            User.email_verified.is_(True),
+            User.is_active.is_(True),
+        ).limit(200)
+    )
+    for customer in customers_r.scalars().all():
+        send_new_listing_email.delay(
+            customer.email,
+            listing.title,
+            listing.current_price,
+            vendor.business_name,
+            listing.category,
+        )
+
     return _listing_to_response(listing, allergens)
 
 
