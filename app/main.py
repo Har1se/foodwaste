@@ -52,8 +52,11 @@ async def lifespan(app: FastAPI):
     await create_db_and_tables()
     logger.info("Database tables ready")
 
-    await get_redis()
-    logger.info("Redis connected")
+    try:
+        await get_redis()
+        logger.info("Redis connected")
+    except Exception as exc:
+        logger.warning("Redis unavailable — auth tokens and rate limiting disabled: %s", exc)
 
     try:
         async with AsyncSessionLocal() as session:
