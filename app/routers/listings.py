@@ -39,6 +39,7 @@ def _listing_to_response(listing: Listing, allergens: List[str]) -> ListingRespo
         latitude=listing.latitude,
         longitude=listing.longitude,
         photo_url=listing.photo_url,
+        category=listing.category,
         days_active=listing.days_active,
         created_at=listing.created_at,
     )
@@ -51,6 +52,21 @@ async def _fetch_allergens(listing_id: int, session: AsyncSession) -> List[str]:
     return [la.allergen_code for la in result.scalars().all()]
 
 
+async def _fetch_allergens_batch(
+    listing_ids: List[int], session: AsyncSession
+) -> dict[int, List[str]]:
+    """Single query for all allergens of a batch of listings (avoids N+1)."""
+    if not listing_ids:
+        return {}
+    result = await session.execute(
+        select(ListingAllergen).where(ListingAllergen.listing_id.in_(listing_ids))
+    )
+    mapping: dict[int, List[str]] = {lid: [] for lid in listing_ids}
+    for la in result.scalars().all():
+        mapping[la.listing_id].append(la.allergen_code)
+    return mapping
+
+
 # ── Collection endpoints (no path param) ─────────────────────────────────────
 
 @router.get("", response_model=CursorPage[ListingResponse])
@@ -59,22 +75,25 @@ async def list_listings(
     limit: int = Query(20, ge=1, le=100),
     lat: Optional[float] = Query(None),
     lng: Optional[float] = Query(None),
+    category: Optional[str] = Query(None),
     session: AsyncSession = Depends(get_session),
 ):
-    """Browse active listings. Supports cursor-based pagination and geo-filter."""
+    """Browse active listings. Supports cursor-based pagination, geo-filter, and category filter."""
     cursor_id = None
     if cursor:
         decoded = decode_cursor(cursor)
         cursor_id = decoded.get("id") if decoded else None
 
     listings, next_id = await listing_service.get_listings(
-        session, lat=lat, lng=lng, cursor_id=cursor_id, limit=limit
+        session, lat=lat, lng=lng, cursor_id=cursor_id, limit=limit, category=category
     )
 
-    responses = []
-    for listing in listings:
-        allergens = await _fetch_allergens(listing.id, session)
-        responses.append(_listing_to_response(listing, allergens))
+    # Batch load all allergens in a single query instead of N queries
+    allergens_map = await _fetch_allergens_batch([lst.id for lst in listings], session)
+    responses = [
+        _listing_to_response(lst, allergens_map.get(lst.id, []))
+        for lst in listings
+    ]
 
     return CursorPage(
         data=responses,
@@ -149,10 +168,11 @@ async def get_my_listings(
         listings = listings[:limit]
         next_id = listings[-1].id
 
-    responses = []
-    for lst in listings:
-        allergens = await _fetch_allergens(lst.id, session)
-        responses.append(_listing_to_response(lst, allergens))
+    allergens_map = await _fetch_allergens_batch([lst.id for lst in listings], session)
+    responses = [
+        _listing_to_response(lst, allergens_map.get(lst.id, []))
+        for lst in listings
+    ]
 
     return CursorPage(
         data=responses,
@@ -208,6 +228,8 @@ async def update_listing(
         listing.pickup_window_end = data.pickup_window_end
     if data.status is not None:
         listing.status = data.status
+    if data.category is not None:
+        listing.category = data.category
     if data.allergens is not None:
         existing = await session.execute(
             select(ListingAllergen).where(ListingAllergen.listing_id == listing_id)

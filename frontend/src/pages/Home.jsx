@@ -16,17 +16,6 @@ const CATEGORIES = [
   { value: 'free',      label: 'Бесплатно',   emoji: '🎁' },
 ]
 
-const CATEGORY_KEYWORDS = {
-  sushi:   ['суши', 'ролл', 'рамен', 'гёдза', 'поке', 'кимчи'],
-  bakery:  ['выпечка', 'круассан', 'корзинка', 'хлеб', 'сдоба', 'панкейк', 'пончик', 'гранола', 'авокадо-тост', 'яйца бенедикт', 'хачапури'],
-  salad:   ['боул', 'салат', 'фалафель', 'веганский', 'гранола'],
-  hot:     ['плов', 'лагман', 'манты', 'буррито', 'шаурма', 'бизнес-ланч', 'жаркое', 'стейк', 'рыба', 'лазанья', 'паста', 'пицца', 'суп', 'ланч', 'баттер', 'бирьяни', 'хачапури', 'хинкали', 'тако', 'карри', 'том ям'],
-  burger:  ['бургер', 'сэндвич', 'клубный', 'нахос'],
-  asian:   ['тай', 'пад', 'карри', 'том ям', 'баттер чикен', 'самоса', 'бирьяни', 'корейский', 'кимчи', 'хинкали', 'хачапури', 'тако'],
-  dessert: ['торт', 'чизкейк', 'мороженое', 'джелато', 'пончик', 'панкейк', 'ассорти десертов', 'печенье', 'макарон'],
-  drinks:  ['смузи', 'напиток', 'кофе', 'лимонад'],
-  free:    ['бесплатно', 'бесплатн'],
-}
 
 const SparkleIcon = () => (
   <svg viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5">
@@ -61,7 +50,7 @@ export default function Home() {
     append ? setLoadingMore(true) : setLoading(true)
     setError('')
     try {
-      const { data } = await listingsApi.list({ cursor: cursor || undefined, limit: 20 })
+      const { data } = await listingsApi.list({ cursor: cursor || undefined, limit: 20, category: category || undefined })
       setListings((cur) => append ? [...cur, ...data.data] : data.data)
       setNextCursor(data.pagination.next_cursor || null)
     } catch {
@@ -70,22 +59,14 @@ export default function Home() {
       setLoading(false)
       setLoadingMore(false)
     }
-  }, [])
+  }, [category])
 
   useEffect(() => { loadListings() }, [loadListings])
 
   const filtered = useMemo(() => listings.filter((item) => {
     const q = search.trim().toLowerCase()
-    const matchesSearch = !q || item.title.toLowerCase().includes(q) || item.description.toLowerCase().includes(q)
-    let matchesCat = !category
-    if (category === 'free') {
-      matchesCat = item.status === 'free' || item.current_price === 0
-    } else if (category) {
-      const keywords = CATEGORY_KEYWORDS[category]
-      matchesCat = keywords && keywords.some((kw) => item.title.toLowerCase().includes(kw))
-    }
-    return matchesSearch && matchesCat
-  }), [listings, search, category])
+    return !q || item.title.toLowerCase().includes(q) || item.description.toLowerCase().includes(q)
+  }), [listings, search])
 
   const stats = useMemo(() => ({
     total: listings.length,

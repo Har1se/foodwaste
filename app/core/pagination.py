@@ -1,6 +1,6 @@
 import base64
 import json
-from typing import Any, Generic, List, Optional, TypeVar
+from typing import Generic, List, Optional, TypeVar
 from pydantic import BaseModel
 
 T = TypeVar("T")

@@ -17,6 +17,7 @@ from app.models import *  # noqa: F401, F403
 from app.models.log import SystemLog
 
 from app.routers import auth, listings, orders, vendors, admin, payments, jobs
+from app.routers import auctions, drivers
 from app.demo_seed import auto_seed
 from app.models.listing import Listing
 from sqlmodel import select, func
@@ -216,6 +217,8 @@ app.include_router(vendors.router)
 app.include_router(admin.router)
 app.include_router(payments.router)
 app.include_router(jobs.router)
+app.include_router(auctions.router)
+app.include_router(drivers.router)
 
 
 @app.get("/health", tags=["Health"])

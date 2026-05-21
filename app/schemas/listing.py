@@ -16,6 +16,7 @@ class ListingCreate(BaseModel):
     latitude: float
     longitude: float
     photo_url: Optional[str] = None
+    category: Optional[str] = None
 
     @field_validator("allergens")
     @classmethod
@@ -41,6 +42,7 @@ class ListingUpdate(BaseModel):
     pickup_window_end: Optional[datetime] = None
     allergens: Optional[List[AllergenCode]] = None
     status: Optional[ListingStatus] = None
+    category: Optional[str] = None
 
 
 class AllergenFilterRequest(BaseModel):
@@ -75,5 +77,6 @@ class ListingResponse(BaseModel):
     latitude: float
     longitude: float
     photo_url: Optional[str]
+    category: Optional[str] = None
     days_active: int
     created_at: datetime

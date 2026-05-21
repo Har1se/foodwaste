@@ -65,6 +65,7 @@ class Listing(SQLModel, table=True):
     latitude: float = Field()
     longitude: float = Field()
     photo_url: Optional[str] = Field(default=None, max_length=500)
+    category: Optional[str] = Field(default=None, max_length=50, index=True)
     created_at: datetime = Field(default_factory=_utcnow)
     updated_at: datetime = Field(default_factory=_utcnow)
 

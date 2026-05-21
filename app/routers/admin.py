@@ -13,7 +13,7 @@ from app.core.pagination import encode_cursor, decode_cursor, CursorPage, Pagina
 from app.models.user import User, UserRole
 from app.models.vendor import Vendor
 from app.models.listing import Listing, ListingStatus, ListingAllergen
-from app.models.order import Order, OrderStatus, OrderItem, Payment, AuditLog
+from app.models.order import Order, OrderStatus, OrderItem, AuditLog
 from app.models.log import SystemLog
 from app.schemas.auth import UserProfileResponse, AdminUserUpdateRequest
 from app.schemas.listing import ListingResponse, ListingUpdate

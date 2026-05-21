@@ -1,11 +1,9 @@
 import math
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import List, Optional
 
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
-from sqlalchemy import text
-from fastapi import HTTPException
 
 from app.models.listing import Listing, ListingAllergen, ListingStatus, AllergenCode
 from app.models.vendor import Vendor
@@ -84,6 +82,7 @@ async def create_listing(data: ListingCreate, vendor: Vendor, session: AsyncSess
         latitude=data.latitude,
         longitude=data.longitude,
         photo_url=data.photo_url,
+        category=data.category,
     )
     session.add(listing)
     await session.flush()  # get listing.id
@@ -104,16 +103,10 @@ async def get_listings(
     lng: Optional[float] = None,
     cursor_id: Optional[int] = None,
     limit: int = 20,
+    category: Optional[str] = None,
 ) -> tuple[List[Listing], Optional[int]]:
-    """Cursor-based listing search with optional geo-filter.
-
-    When a geo-filter is active the query fetches a larger batch so that
-    enough in-range results survive the client-side distance check.  This
-    avoids the pagination bug where filtering after a limit+1 fetch could
-    return fewer than `limit` rows even though more in-range rows exist.
-    """
+    """Cursor-based listing search with optional geo-filter and category filter."""
     geo_active = lat is not None and lng is not None
-    # Fetch extra rows when geo-filtering to compensate for items outside range
     fetch_limit = (limit + 1) * 8 if geo_active else (limit + 1)
 
     query = select(Listing).where(
@@ -121,6 +114,14 @@ async def get_listings(
         Listing.quantity_available > 0,
         Listing.pickup_window_end > _utcnow(),
     )
+
+    if category == "free":
+        from sqlalchemy import or_
+        query = query.where(
+            or_(Listing.status == ListingStatus.FREE, Listing.current_price == 0)
+        )
+    elif category:
+        query = query.where(Listing.category == category)
 
     if cursor_id:
         query = query.where(Listing.id > cursor_id)
@@ -153,21 +154,35 @@ def _haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 
 
 # ── Price Decay State Machine ──────────────────────────────────────────────────
-# Fresh → Discounted (days_active >= 30, 10% decay every 72h)
-# Discounted → Free (price hits floor 0)
-# Free → Compost (pickup_window_end passed)
+# Fresh (ACTIVE) → Discounted: after DECAY_START_DAYS days since creation,
+#   price drops 10% on every Celery Beat tick (every 15 min).
+# Discounted → Free: when current_price reaches 0.
+# Any active state → Compost: when pickup_window_end has passed.
+#
+# FIX: old code used `days_active >= 30` which was never true for fresh
+# listings (they start at 0 and the field was only updated for items that
+# ALREADY had days_active >= 30 — a circular dependency).  Replaced with
+# a real time-based check using created_at so any listing older than
+# DECAY_START_DAYS automatically enters the decay cycle.
+
+DECAY_START_DAYS = 1        # start decaying after 1 day (demo friendly)
+DECAY_RATE = 0.90           # 10% price drop per tick
+
 
 async def apply_price_decay(session: AsyncSession) -> int:
     """
     RESCUEBITE CORE: Food item state machine with time-based transitions.
-    Called by Celery Beat every 72 hours.
+    Called by Celery Beat every 15 minutes.
     Returns number of listings updated.
     """
     now = _utcnow()
+    age_threshold = now - timedelta(days=DECAY_START_DAYS)
+
+    # Select listings eligible for price decay (old enough, not yet expired)
     result = await session.execute(
         select(Listing).where(
             Listing.status.in_([ListingStatus.ACTIVE, ListingStatus.DISCOUNTED]),
-            Listing.days_active >= 30,
+            Listing.created_at <= age_threshold,
             Listing.pickup_window_end > now,
         )
     )
@@ -175,11 +190,12 @@ async def apply_price_decay(session: AsyncSession) -> int:
     updated = 0
 
     for listing in listings:
-        new_price = max(int(listing.current_price * 0.90), 0)
+        new_price = max(int(listing.current_price * DECAY_RATE), 0)
         listing.current_price = new_price
-        listing.days_active += 3
+        # Keep days_active in sync with real elapsed time
+        listing.days_active = max(listing.days_active, (now - listing.created_at).days)
 
-        # State transitions — order matters: FREE check first, no elif
+        # State transitions — FREE check first (price can hit 0 in one step)
         if new_price == 0:
             listing.status = ListingStatus.FREE
         elif listing.status == ListingStatus.ACTIVE:
@@ -189,7 +205,7 @@ async def apply_price_decay(session: AsyncSession) -> int:
         session.add(listing)
         updated += 1
 
-    # Expire listings past pickup window
+    # Expire listings past pickup window regardless of current status
     expired_result = await session.execute(
         select(Listing).where(
             Listing.status.in_([ListingStatus.ACTIVE, ListingStatus.DISCOUNTED, ListingStatus.FREE]),

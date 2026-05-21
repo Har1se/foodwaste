@@ -1,0 +1,16 @@
+RescueBite Demo Video
+======================
+
+Video Link: https://youtu.be/PLACEHOLDER
+
+Status: Pending recording
+
+Demo script:
+  1. Register as customer (show email OTP)
+  2. Register as vendor (show admin approval)
+  3. Create a food listing with allergen tags
+  4. Show price decay in action (Celery Beat every 15 min)
+  5. Place an order (show oversell prevention)
+  6. Show auction flow (create → bid → end → winner email)
+  7. Show driver assignment and route optimization
+  8. Admin panel: approve vendors, reset seed data, system logs

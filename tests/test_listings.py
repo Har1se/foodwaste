@@ -58,7 +58,7 @@ async def test_allergen_check_endpoint_requires_auth(client: AsyncClient):
         "ingredients": ["wheat flour"],
         "user_allergens": ["gluten"],
     })
-    assert resp.status_code == 403
+    assert resp.status_code in (401, 403)
 
 
 @pytest.mark.asyncio

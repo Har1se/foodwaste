@@ -10,6 +10,8 @@ import ForgotPassword, { ResetPassword } from './pages/ForgotPassword'
 import Orders from './pages/Orders'
 import VendorDashboard from './pages/VendorDashboard'
 import AdminPanel from './pages/AdminPanel'
+import Auctions from './pages/Auctions'
+import Drivers from './pages/Drivers'
 
 function ProtectedRoute({ children, roles }) {
   const { user, loading } = useAuth()
@@ -52,6 +54,12 @@ function AppRoutes() {
           <Route path="/admin" element={
             <ProtectedRoute roles={['admin']}>
               <AdminPanel />
+            </ProtectedRoute>
+          } />
+          <Route path="/auctions" element={<Auctions />} />
+          <Route path="/drivers" element={
+            <ProtectedRoute roles={['customer', 'vendor', 'driver', 'admin']}>
+              <Drivers />
             </ProtectedRoute>
           } />
           <Route path="*" element={

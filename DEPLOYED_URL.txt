@@ -1,0 +1,15 @@
+RescueBite Deployed URL
+=======================
+
+Production API:  https://rescuebite-api.deployrocks.com
+Frontend:        https://rescuebite.deployrocks.com
+API Docs:        https://rescuebite-api.deployrocks.com/docs
+
+Status: Pending deployment
+Platform: deployrocks.com
+
+To deploy:
+  1. Push this repo to GitHub
+  2. Connect repo to deployrocks.com
+  3. Set environment variables from .env.example
+  4. Deploy (docker-compose.yml is the entry point)

@@ -1,0 +1,64 @@
+RescueBite — Final Defense Checklist
+======================================
+
+CORE FEATURES
+[x] User registration with email OTP verification
+[x] JWT auth (access token 30 days, refresh token 7 days, stored in Redis)
+[x] Vendor registration + admin approval flow
+[x] Food listing CRUD with allergen tags
+[x] Cursor-based pagination for listings
+[x] Two-layer oversell prevention (Redis + PostgreSQL SELECT FOR UPDATE)
+[x] Order placement, status state machine with transition validation
+[x] Pickup token generation and verification
+[x] Payment integration stub (Kaspi Pay webhook)
+[x] Password reset via email link
+
+ADVANCED FEATURES
+[x] Price decay every 15 minutes via Celery Beat (ACTIVE → DISCOUNTED → FREE → COMPOST)
+[x] Flash auction system (reverse auction — lowest unique bid wins)
+[x] Driver registration and assignment (nearest-neighbor algorithm)
+[x] Route optimization for driver deliveries (nearest-neighbor TSP)
+[x] Allergen parser / geofencing (filter listings by user allergen profile)
+[x] Geolocation-based listing search (Haversine formula)
+[x] Rate limiting on auth endpoints (slowapi)
+[x] Audit log for all state changes
+
+EMAIL NOTIFICATIONS
+[x] Email verification (OTP code)
+[x] Password reset link
+[x] Order confirmation with pickup token
+[x] Vendor account approved
+[x] Auction winner notification
+
+INFRASTRUCTURE
+[x] FastAPI + SQLModel + PostgreSQL 16
+[x] Redis 7 for token blacklist, stock reservation, Celery broker
+[x] Celery 5 worker + Beat scheduler
+[x] Docker Compose: api, db, redis, worker, beat, frontend
+[x] Frontend Dockerfile (Node 20 build → nginx serve)
+[x] Alembic migrations (003 versions)
+[x] Security headers middleware
+[x] Request/response logging to SystemLog table
+[x] CORS configured
+
+TESTS
+[x] test_auth.py — registration, login, OTP, refresh, logout
+[x] test_listings.py — CRUD, allergen filter, geo search
+[x] test_orders.py — place order, status transitions, oversell prevention
+[x] test_price_decay.py — state machine, 15-min decay
+[x] test_atomicity.py — concurrent order race condition
+
+DOCUMENTATION
+[x] README.md with setup and deployment instructions
+[x] openapi.yaml (auto-generated from FastAPI)
+[x] .env.example with all variables documented
+[x] CHECKLIST.txt (this file)
+[x] DEPLOYED_URL.txt
+[x] VIDEO_LINK.txt
+
+DEPLOYMENT
+[ ] Deploy to deployrocks.com (see DEPLOYED_URL.txt)
+[ ] Set production SECRET_KEY (min 32 chars random)
+[ ] Configure real Gmail SMTP credentials
+[ ] Set ENVIRONMENT=production in .env
+[ ] Set ALLOWED_ORIGINS to production domain

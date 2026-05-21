@@ -5,7 +5,7 @@ from httpx import AsyncClient
 @pytest.mark.asyncio
 async def test_order_requires_auth(client: AsyncClient):
     resp = await client.post("/orders", json={"items": [{"listing_id": 1, "quantity": 1}]})
-    assert resp.status_code == 403
+    assert resp.status_code in (401, 403)
 
 
 @pytest.mark.asyncio

@@ -1,5 +1,4 @@
 import os
-import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
 from sqlmodel import SQLModel
@@ -37,7 +36,6 @@ auth_svc.get_user_id_from_refresh_token = mock_get_user_id_from_refresh_token
 auth_svc.revoke_refresh_token = mock_revoke_refresh_token
 
 # ── Mock Celery email tasks (no broker in tests) ──────────────────────────────
-from unittest.mock import MagicMock
 
 class _NoOpTask:
     def delay(self, *args, **kwargs):
@@ -48,6 +46,7 @@ email_tasks_module.send_verification_email = _NoOpTask()
 email_tasks_module.send_password_reset_email = _NoOpTask()
 email_tasks_module.send_order_confirmation_email = _NoOpTask()
 email_tasks_module.send_vendor_approved_email = _NoOpTask()
+email_tasks_module.send_auction_won_email = _NoOpTask()
 
 # Also patch the router-level imports
 import app.routers.auth as auth_router_module

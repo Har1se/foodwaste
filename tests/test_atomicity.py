@@ -13,7 +13,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from app.models.listing import Listing, ListingStatus
-from app.models.order import Order
 from app.models.vendor import Vendor
 from app.models.user import User
 from app.core.security import hash_password
@@ -34,7 +33,6 @@ async def register_and_login(client: AsyncClient, email: str, role: str = "custo
 async def create_approved_vendor_and_listing(qty: int) -> tuple[int, int]:
     """Create vendor + listing directly in DB. Returns (vendor_id, listing_id)."""
     from tests.conftest import TestSessionLocal
-    from datetime import datetime, timedelta
     import random
 
     async with TestSessionLocal() as s:

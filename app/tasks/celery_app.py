@@ -1,5 +1,5 @@
 from celery import Celery
-from celery.schedules import crontab
+from datetime import timedelta
 from app.config import settings
 
 celery_app = Celery(
@@ -9,15 +9,15 @@ celery_app = Celery(
 )
 
 celery_app.conf.beat_schedule = {
-    # Price decay: every 72 hours (at midnight every 3 days)
-    "price-decay-every-72h": {
+    # Price decay: every 15 minutes
+    "price-decay-every-15min": {
         "task": "app.tasks.price_decay.run_price_decay",
-        "schedule": crontab(hour=0, minute=0, day_of_month="*/3"),
+        "schedule": timedelta(minutes=15),
     },
-    # Expire listings every hour
-    "expire-listings-hourly": {
-        "task": "app.tasks.price_decay.run_price_decay",
-        "schedule": crontab(minute=0),
+    # Process expired auctions every 5 minutes
+    "process-expired-auctions": {
+        "task": "app.tasks.auction_tasks.process_expired_auctions",
+        "schedule": timedelta(minutes=5),
     },
 }
 

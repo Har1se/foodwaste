@@ -86,6 +86,23 @@ def build_order_confirmation_email(order_id: int, pickup_token: str, total_amoun
     return subject, html
 
 
+def build_auction_won_email(auction_id: int, winning_amount: int) -> tuple[str, str]:
+    subject = f"RescueBite — Вы выиграли аукцион #{auction_id}!"
+    html = f"""
+    <div style="font-family:sans-serif;max-width:500px;margin:auto">
+      <h2 style="color:#2d7a4f">Поздравляем! Вы выиграли аукцион!</h2>
+      <p>Ваша ставка на аукционе <strong>#{auction_id}</strong> оказалась самой низкой уникальной.</p>
+      <table style="width:100%;border-collapse:collapse;margin:16px 0">
+        <tr><td style="padding:8px;color:#555">Выигрышная ставка:</td><td style="padding:8px;font-weight:bold;color:#2d7a4f">{winning_amount:,.0f} ₸</td></tr>
+      </table>
+      <p>Перейдите в приложение, чтобы оформить заказ по этой цене.</p>
+      <a href="{settings.FRONTEND_URL}/auctions/{auction_id}" style="display:inline-block;padding:12px 24px;background:#2d7a4f;color:#fff;text-decoration:none;border-radius:6px;margin:16px 0">Перейти к аукциону</a>
+      <p style="color:#888;font-size:12px">Спасибо, что помогаете бороться с пищевыми отходами!</p>
+    </div>
+    """
+    return subject, html
+
+
 def build_vendor_approved_email(business_name: str) -> tuple[str, str]:
     subject = "RescueBite — Ваш аккаунт продавца одобрен!"
     html = f"""

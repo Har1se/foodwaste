@@ -3,6 +3,8 @@ from app.models.vendor import Vendor
 from app.models.listing import Listing, ListingAllergen, ListingStatus, AllergenCode
 from app.models.order import Order, OrderItem, Payment, AuditLog, OrderStatus, PaymentStatus
 from app.models.log import SystemLog
+from app.models.auction import Auction, AuctionBid, AuctionStatus
+from app.models.driver import Driver, Delivery, DriverStatus, DeliveryStatus, VehicleType
 
 __all__ = [
     "User", "OTPCode", "UserRole",
@@ -10,4 +12,6 @@ __all__ = [
     "Listing", "ListingAllergen", "ListingStatus", "AllergenCode",
     "Order", "OrderItem", "Payment", "AuditLog", "OrderStatus", "PaymentStatus",
     "SystemLog",
+    "Auction", "AuctionBid", "AuctionStatus",
+    "Driver", "Delivery", "DriverStatus", "DeliveryStatus", "VehicleType",
 ]

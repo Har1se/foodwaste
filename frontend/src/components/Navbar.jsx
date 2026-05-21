@@ -61,9 +61,27 @@ export default function Navbar() {
     hour: '2-digit', minute: '2-digit', second: '2-digit',
   })
 
+  const AuctionIcon = () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+      <path d="M14.5 10c-.83 0-1.5-.67-1.5-1.5v-5c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5v5c0 .83-.67 1.5-1.5 1.5z"/>
+      <path d="M20.5 10H19V8.5c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/>
+      <path d="M9.5 14c.83 0 1.5.67 1.5 1.5v5c0 .83-.67 1.5-1.5 1.5S8 21.33 8 20.5v-5c0-.83.67-1.5 1.5-1.5z"/>
+      <path d="M3.5 14H5v1.5c0 .83-.67 1.5-1.5 1.5S2 16.33 2 15.5 2.67 14 3.5 14z"/>
+      <path d="M14 14l-4 4"/><path d="m10 14 4 4"/>
+    </svg>
+  )
+  const TruckIcon = () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+      <rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/>
+      <circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
+    </svg>
+  )
+
   const navLinks = [
     { to: '/', label: 'Маркет', icon: null, show: true },
+    { to: '/auctions', label: 'Аукционы', icon: <AuctionIcon />, show: true },
     { to: '/orders', label: 'Заказы', icon: <CartIcon />, show: user?.role === 'customer' || user?.role === 'admin' },
+    { to: '/drivers', label: 'Водитель', icon: <TruckIcon />, show: !!user },
     { to: '/vendor', label: 'Кабинет', icon: <StoreIcon />, show: user?.role === 'vendor' || user?.role === 'admin' },
     { to: '/admin', label: 'Панель', icon: <ShieldIcon />, show: user?.role === 'admin' },
   ].filter((l) => l.show)

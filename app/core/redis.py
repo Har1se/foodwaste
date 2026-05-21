@@ -21,15 +21,27 @@ async def close_redis():
         _redis = None
 
 
-# ── Rate Limiting (token bucket) ──────────────────────────────────────────────
+# ── Rate Limiting (atomic Lua script — INCR + EXPIRE in one round-trip) ───────
+# Race condition fix: old approach called INCR then EXPIRE as two separate
+# commands. If the process died between them the key had no TTL and the counter
+# lived forever, blocking the client permanently.
+# Lua script is executed atomically on the Redis server side.
+_RATE_LIMIT_LUA = """
+local key     = KEYS[1]
+local limit   = tonumber(ARGV[1])
+local window  = tonumber(ARGV[2])
+local current = redis.call('INCR', key)
+if current == 1 then
+    redis.call('EXPIRE', key, window)
+end
+return current
+"""
 
 async def check_rate_limit(key: str, max_requests: int, window_seconds: int):
     if not settings.ENABLE_RATE_LIMIT:
         return
     r = await get_redis()
-    current = await r.incr(key)
-    if current == 1:
-        await r.expire(key, window_seconds)
+    current = await r.eval(_RATE_LIMIT_LUA, 1, key, max_requests, window_seconds)
     if current > max_requests:
         raise HTTPException(status_code=429, detail="Rate limit exceeded. Try again later.")
 

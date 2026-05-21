@@ -86,6 +86,26 @@ export const vendorsApi = {
   get: (id) => api.get(`/vendors/${id}`),
 }
 
+// ── Auctions ──────────────────────────────────────────────────────────────────
+export const auctionsApi = {
+  list: (params) => api.get('/auctions', { params }),
+  get: (id) => api.get(`/auctions/${id}`),
+  create: (data) => api.post('/auctions', data),
+  bid: (id, data) => api.post(`/auctions/${id}/bid`, data),
+  end: (id) => api.post(`/auctions/${id}/end`),
+}
+
+// ── Drivers ───────────────────────────────────────────────────────────────────
+export const driversApi = {
+  register: (data) => api.post('/drivers/register', data),
+  me: () => api.get('/drivers/me'),
+  updateLocation: (data) => api.patch('/drivers/me/location', data),
+  nearby: (params) => api.get('/drivers/nearby', { params }),
+  myDeliveries: () => api.get('/deliveries/my'),
+  updateDelivery: (id, data) => api.patch(`/deliveries/${id}/status`, data),
+  routeOptimize: () => api.get('/drivers/route-optimize'),
+}
+
 // ── Admin ─────────────────────────────────────────────────────────────────────
 export const adminApi = {
   stats: () => api.get('/admin/stats'),

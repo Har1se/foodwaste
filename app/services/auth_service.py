@@ -1,4 +1,3 @@
-import random
 import secrets
 from datetime import datetime, timezone, timedelta
 
@@ -6,7 +5,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from fastapi import HTTPException, status
 
-from app.models.user import User, UserRole, OTPCode
+from app.models.user import User, OTPCode
 from app.core.security import (
     hash_password, verify_password,
     create_access_token, create_refresh_token,
@@ -23,7 +22,8 @@ def _utcnow() -> datetime:
 
 
 def _generate_otp() -> str:
-    return str(random.randint(100000, 999999))
+    # secrets.randbelow is cryptographically secure (unlike random.randint)
+    return str(secrets.randbelow(900000) + 100000)
 
 
 async def register_user(data: RegisterRequest, session: AsyncSession) -> tuple[User, str]:

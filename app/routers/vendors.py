@@ -2,11 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel import select
 from pydantic import BaseModel, ConfigDict
-from typing import Optional
 
 from app.database import get_session
-from app.config import settings
-from app.core.dependencies import get_current_user, require_role
+from app.core.dependencies import require_role
 from app.models.user import User, UserRole
 from app.models.vendor import Vendor
 
