@@ -1,3 +1,4 @@
+import asyncio
 import smtplib
 import logging
 from email.mime.multipart import MIMEMultipart
@@ -164,6 +165,53 @@ def build_auction_lost_email(auction_id: int) -> tuple[str, str]:
     </div>
     """
     return subject, html
+
+
+async def _fire(coro):
+    """Run a coroutine as a background task, logging any errors."""
+    try:
+        await coro
+    except Exception as exc:
+        logger.error("Background email failed: %s", exc)
+
+
+async def _send(to: str, subject: str, html: str) -> None:
+    await asyncio.to_thread(send_email, to, subject, html)
+
+
+async def async_send_verification_email(email: str, otp_code: str) -> None:
+    subject, html = build_verification_email(otp_code)
+    asyncio.create_task(_fire(_send(email, subject, html)))
+
+
+async def async_send_password_reset_email(email: str, reset_token: str) -> None:
+    subject, html = build_password_reset_email(reset_token)
+    asyncio.create_task(_fire(_send(email, subject, html)))
+
+
+async def async_send_order_confirmation_email(email: str, order_id: int, pickup_token: str, total_amount: float) -> None:
+    subject, html = build_order_confirmation_email(order_id, pickup_token, total_amount)
+    asyncio.create_task(_fire(_send(email, subject, html)))
+
+
+async def async_send_vendor_approved_email(email: str, business_name: str) -> None:
+    subject, html = build_vendor_approved_email(business_name)
+    asyncio.create_task(_fire(_send(email, subject, html)))
+
+
+async def async_send_new_listing_email(email: str, title: str, current_price: int, vendor_name: str, category) -> None:
+    subject, html = build_new_listing_email(title, current_price, vendor_name, category)
+    asyncio.create_task(_fire(_send(email, subject, html)))
+
+
+async def async_send_auction_won_email(email: str, auction_id: int, winning_amount: int) -> None:
+    subject, html = build_auction_won_email(auction_id, winning_amount)
+    asyncio.create_task(_fire(_send(email, subject, html)))
+
+
+async def async_send_driver_assignment_email(email: str, order_id: int, vendor_name: str, vendor_address: str, distance_km: float) -> None:
+    subject, html = build_driver_assignment_email(order_id, vendor_name, vendor_address, distance_km)
+    asyncio.create_task(_fire(_send(email, subject, html)))
 
 
 def build_vendor_approved_email(business_name: str) -> tuple[str, str]:

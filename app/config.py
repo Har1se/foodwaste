@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     SMTP_FROM: str = "noreply@rescuebite.kz"
     EMAIL_API_KEY: str = ""       # SendGrid/Mailgun API key (mapped to SMTP_PASSWORD)
     EMAIL_FROM_ADDRESS: str = ""  # Alias for SMTP_FROM
-    FRONTEND_URL: str = "http://localhost:3000"
+    FRONTEND_URL: str = "https://foodwaste-1-fe33.onrender.com"
 
     # ── CORS ─────────────────────────────────────────────────────────────────────
     # CORS_ORIGINS: comma-separated string (platform standard).
@@ -69,7 +69,7 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     DEBUG: bool = False
     ENABLE_RATE_LIMIT: bool = True
-    DEV_AUTO_VERIFY_EMAIL: bool = True
+    DEV_AUTO_VERIFY_EMAIL: bool = False
     DEV_AUTO_APPROVE_VENDORS: bool = True
 
     @field_validator("SECRET_KEY")

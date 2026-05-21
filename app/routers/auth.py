@@ -16,9 +16,9 @@ from app.schemas.auth import (
     UserProfileResponse,
 )
 from app.services import auth_service
-from app.tasks.email_tasks import (
-    send_verification_email,
-    send_password_reset_email,
+from app.services.email_service import (
+    async_send_verification_email,
+    async_send_password_reset_email,
 )
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
@@ -52,7 +52,7 @@ async def register(
     ip = request.client.host if request.client else "unknown"
     await check_rate_limit(f"ratelimit:register:{ip}", max_requests=3, window_seconds=3600)
     user, otp_code = await auth_service.register_user(data, session)
-    send_verification_email.delay(user.email, otp_code)
+    await async_send_verification_email(user.email, otp_code)
     return UserProfileResponse.model_validate(user)
 
 
@@ -76,7 +76,7 @@ async def resend_verification(
     ip = request.client.host if request.client else "unknown"
     await check_rate_limit(f"ratelimit:resend:{ip}", max_requests=3, window_seconds=3600)
     otp_code = await auth_service.resend_verification(data.email, session)
-    send_verification_email.delay(data.email, otp_code)
+    await async_send_verification_email(data.email, otp_code)
     return {"detail": "Verification code sent. Check your inbox."}
 
 
@@ -92,7 +92,7 @@ async def forgot_password(
     result = await auth_service.forgot_password(data.email, session)
     if result:
         email, reset_token = result
-        send_password_reset_email.delay(email, reset_token)
+        await async_send_password_reset_email(email, reset_token)
     # Always return 200 to prevent email enumeration
     return {"detail": "If an account with that email exists, a reset link has been sent."}
 

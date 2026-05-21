@@ -235,8 +235,8 @@ async def end_auction(
         winner_r = await session.execute(select(User).where(User.id == winner_bid.bidder_id))
         winner_user = winner_r.scalars().first()
         if winner_user:
-            from app.tasks.email_tasks import send_auction_won_email
-            send_auction_won_email.delay(winner_user.email, auction_id, winner_bid.amount)
+            from app.services.email_service import async_send_auction_won_email
+            await async_send_auction_won_email(winner_user.email, auction_id, winner_bid.amount)
 
     await session.commit()
     await session.refresh(auction)

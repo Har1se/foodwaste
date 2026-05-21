@@ -123,7 +123,7 @@ async def create_listing(
 
     # Notify all verified customers (shelters) about the new listing
     from app.models.user import UserRole as _UserRole
-    from app.tasks.email_tasks import send_new_listing_email
+    from app.services.email_service import async_send_new_listing_email
     customers_r = await session.execute(
         select(User).where(
             User.role == _UserRole.CUSTOMER,
@@ -132,7 +132,7 @@ async def create_listing(
         ).limit(200)
     )
     for customer in customers_r.scalars().all():
-        send_new_listing_email.delay(
+        await async_send_new_listing_email(
             customer.email,
             listing.title,
             listing.current_price,

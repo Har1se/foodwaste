@@ -190,10 +190,10 @@ async def assign_driver_to_order(
     driver_user_r = await session.execute(select(User).where(User.id == best_driver.user_id))
     driver_user = driver_user_r.scalars().first()
     if driver_user and driver_user.email:
-        from app.tasks.email_tasks import send_driver_assignment_email
+        from app.services.email_service import async_send_driver_assignment_email
         vendor_address = vendor.address if vendor else "Алматы"
         vendor_biz_name = vendor.business_name if vendor else "Заведение"
-        send_driver_assignment_email.delay(
+        await async_send_driver_assignment_email(
             driver_user.email, order_id, vendor_biz_name, vendor_address, round(dist, 2),
         )
 
