@@ -3,6 +3,13 @@ version: "3.9"
 # All secret/config values come from environment variables.
 # For local development: copy .env.example → .env and fill in values.
 # For DeployRocks: set variables in the platform dashboard.
+#
+# IMPORTANT: networks section is explicit so Dokku/DeployRocks creates
+# the bridge network before starting any containers (avoids race condition).
+
+networks:
+  default:
+    driver: bridge
 
 services:
   # ── PostgreSQL ──────────────────────────────────────────────────────────────
@@ -43,11 +50,11 @@ services:
     build: .
     restart: unless-stopped
     ports:
-      - "${BACKEND_PORT:-8000}:8000"
+      - "${BACKEND_PORT:-8000}:${PORT:-8000}"
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://rescuebite:rescuebite@postgres:5432/rescuebite_db}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
-      SECRET_KEY: ${SECRET_KEY:-${JWT_SECRET_KEY:-rescuebite_dev_key_minimum_32chars_long}}
+      SECRET_KEY: ${SECRET_KEY:-rescuebite_dev_key_minimum_32chars_long}
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-rescuebite_dev_key_minimum_32chars_long}
       JWT_REFRESH_SECRET_KEY: ${JWT_REFRESH_SECRET_KEY:-}
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-43200}
@@ -74,8 +81,9 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    # PORT is set by Dokku; falls back to 8000 for local docker compose
     command: >
-      sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+      sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"
 
   # ── Celery Worker ───────────────────────────────────────────────────────────
   worker:
@@ -84,7 +92,7 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://rescuebite:rescuebite@postgres:5432/rescuebite_db}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
-      SECRET_KEY: ${SECRET_KEY:-${JWT_SECRET_KEY:-rescuebite_dev_key_minimum_32chars_long}}
+      SECRET_KEY: ${SECRET_KEY:-rescuebite_dev_key_minimum_32chars_long}
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-rescuebite_dev_key_minimum_32chars_long}
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
@@ -123,7 +131,7 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://rescuebite:rescuebite@postgres:5432/rescuebite_db}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
-      SECRET_KEY: ${SECRET_KEY:-${JWT_SECRET_KEY:-rescuebite_dev_key_minimum_32chars_long}}
+      SECRET_KEY: ${SECRET_KEY:-rescuebite_dev_key_minimum_32chars_long}
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-rescuebite_dev_key_minimum_32chars_long}
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
@@ -142,21 +150,22 @@ services:
         condition: service_healthy
     command: celery -A app.tasks.celery_app.celery_app beat --loglevel=info -s /tmp/celerybeat-schedule
 
-  # ── Flower (Celery task monitor — port 5555) ─────────────────────────────────
+  # ── Flower (Celery task monitor) ─────────────────────────────────────────────
   flower:
     build: .
     restart: unless-stopped
     ports:
-      - "5555:5555"
+      - "5555:${PORT:-5555}"
     environment:
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
       DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://rescuebite:rescuebite@postgres:5432/rescuebite_db}
-      SECRET_KEY: ${SECRET_KEY:-${JWT_SECRET_KEY:-rescuebite_dev_key_minimum_32chars_long}}
+      SECRET_KEY: ${SECRET_KEY:-rescuebite_dev_key_minimum_32chars_long}
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-rescuebite_dev_key_minimum_32chars_long}
     depends_on:
       - redis
       - worker
-    command: celery -A app.tasks.celery_app.celery_app flower --port=5555
+    # PORT is set by Dokku; falls back to 5555 locally
+    command: celery -A app.tasks.celery_app.celery_app flower --port=${PORT:-5555}
 
 volumes:
   postgres_data:
