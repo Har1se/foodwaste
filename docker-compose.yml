@@ -1,20 +1,24 @@
 version: "3.9"
 
+# All secret/config values come from environment variables.
+# For local development: copy .env.example → .env and fill in values.
+# For DeployRocks: set variables in the platform dashboard.
+
 services:
   # ── PostgreSQL ──────────────────────────────────────────────────────────────
-  db:
-    image: postgres:16
+  postgres:
+    image: postgres:15
     restart: unless-stopped
     environment:
-      POSTGRES_USER: rescuebite
-      POSTGRES_PASSWORD: rescuebite
-      POSTGRES_DB: rescuebite_db
+      POSTGRES_USER: ${POSTGRES_USER:-rescuebite}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rescuebite}
+      POSTGRES_DB: ${POSTGRES_DB:-rescuebite_db}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "5433:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U rescuebite -d rescuebite_db"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-rescuebite} -d ${POSTGRES_DB:-rescuebite_db}"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -23,7 +27,6 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    # appendonly yes ensures refresh tokens survive a Redis restart
     command: redis-server --appendonly yes
     ports:
       - "6379:6379"
@@ -35,75 +38,68 @@ services:
       timeout: 3s
       retries: 5
 
-  # ── FastAPI App ─────────────────────────────────────────────────────────────
+  # ── FastAPI Backend ─────────────────────────────────────────────────────────
   api:
     build: .
     restart: unless-stopped
     ports:
-      - "8000:8000"
+      - "${BACKEND_PORT:-8000}:8000"
     environment:
-      DATABASE_URL: postgresql+asyncpg://rescuebite:rescuebite@db:5432/rescuebite_db
-      REDIS_URL: redis://redis:6379/0
-      SECRET_KEY: rescuebite_dev_secret_key_do_not_use_in_production_x9k2
-      ACCESS_TOKEN_EXPIRE_MINUTES: "43200"
-      REFRESH_TOKEN_EXPIRE_DAYS: "7"
-      KASPI_API_KEY: dev_placeholder
-      KASPI_MERCHANT_ID: dev_placeholder
-      KASPI_WEBHOOK_SECRET: dev_placeholder
-      S3_BUCKET: rescuebite-media
-      S3_ENDPOINT: http://localhost:9000
-      S3_ACCESS_KEY: dev_placeholder
-      S3_SECRET_KEY: dev_placeholder
-      SMTP_HOST: ""
-      SMTP_PORT: "587"
-      SMTP_USER: ""
-      SMTP_PASSWORD: ""
-      SMTP_FROM: noreply@rescuebite.kz
-      FRONTEND_URL: http://localhost:3000
-      ENVIRONMENT: development
-      DEBUG: "true"
-      ENABLE_RATE_LIMIT: "true"
-      DEV_AUTO_VERIFY_EMAIL: "true"
-      DEV_AUTO_APPROVE_VENDORS: "true"
-      ALLOWED_ORIGINS: '["http://localhost:3000","http://localhost:8000","https://rescuebite.deployrocks.com","https://rescuebite-api.deployrocks.com"]'
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://rescuebite:rescuebite@postgres:5432/rescuebite_db}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      SECRET_KEY: ${SECRET_KEY:-${JWT_SECRET_KEY:-rescuebite_dev_key_minimum_32chars_long}}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-rescuebite_dev_key_minimum_32chars_long}
+      JWT_REFRESH_SECRET_KEY: ${JWT_REFRESH_SECRET_KEY:-}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-43200}
+      REFRESH_TOKEN_EXPIRE_DAYS: ${REFRESH_TOKEN_EXPIRE_DAYS:-7}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-noreply@rescuebite.kz}
+      EMAIL_API_KEY: ${EMAIL_API_KEY:-}
+      EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS:-noreply@rescuebite.kz}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      DEBUG: ${DEBUG:-false}
+      ENABLE_RATE_LIMIT: ${ENABLE_RATE_LIMIT:-true}
+      DEV_AUTO_VERIFY_EMAIL: ${DEV_AUTO_VERIFY_EMAIL:-true}
+      DEV_AUTO_APPROVE_VENDORS: ${DEV_AUTO_APPROVE_VENDORS:-true}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:8000}
+      KASPI_API_KEY: ${KASPI_API_KEY:-dev_placeholder}
+      KASPI_MERCHANT_ID: ${KASPI_MERCHANT_ID:-dev_placeholder}
+      KASPI_WEBHOOK_SECRET: ${KASPI_WEBHOOK_SECRET:-dev_placeholder}
     depends_on:
-      db:
+      postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-    volumes:
-      - .:/app
     command: >
-      sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+      sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
 
   # ── Celery Worker ───────────────────────────────────────────────────────────
   worker:
     build: .
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql+asyncpg://rescuebite:rescuebite@db:5432/rescuebite_db
-      REDIS_URL: redis://redis:6379/0
-      SECRET_KEY: rescuebite_dev_secret_key_do_not_use_in_production_x9k2
-      KASPI_API_KEY: dev_placeholder
-      KASPI_MERCHANT_ID: dev_placeholder
-      KASPI_WEBHOOK_SECRET: dev_placeholder
-      S3_BUCKET: rescuebite-media
-      S3_ENDPOINT: http://localhost:9000
-      S3_ACCESS_KEY: dev_placeholder
-      S3_SECRET_KEY: dev_placeholder
-      # FIX: SMTP vars were missing — email tasks silently failed in worker
-      SMTP_HOST: ""
-      SMTP_PORT: "587"
-      SMTP_USER: ""
-      SMTP_PASSWORD: ""
-      SMTP_FROM: noreply@rescuebite.kz
-      FRONTEND_URL: http://localhost:3000
-      ENVIRONMENT: development
-      ENABLE_RATE_LIMIT: "false"
-      DEV_AUTO_VERIFY_EMAIL: "true"
-      DEV_AUTO_APPROVE_VENDORS: "true"
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://rescuebite:rescuebite@postgres:5432/rescuebite_db}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      SECRET_KEY: ${SECRET_KEY:-${JWT_SECRET_KEY:-rescuebite_dev_key_minimum_32chars_long}}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-rescuebite_dev_key_minimum_32chars_long}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-noreply@rescuebite.kz}
+      EMAIL_API_KEY: ${EMAIL_API_KEY:-}
+      EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS:-noreply@rescuebite.kz}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      KASPI_API_KEY: ${KASPI_API_KEY:-dev_placeholder}
+      KASPI_MERCHANT_ID: ${KASPI_MERCHANT_ID:-dev_placeholder}
+      KASPI_WEBHOOK_SECRET: ${KASPI_WEBHOOK_SECRET:-dev_placeholder}
     depends_on:
-      db:
+      postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -116,7 +112,7 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "${FRONTEND_PORT:-3000}:3000"
     depends_on:
       - api
 
@@ -125,43 +121,38 @@ services:
     build: .
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql+asyncpg://rescuebite:rescuebite@db:5432/rescuebite_db
-      REDIS_URL: redis://redis:6379/0
-      SECRET_KEY: rescuebite_dev_secret_key_do_not_use_in_production_x9k2
-      KASPI_API_KEY: dev_placeholder
-      KASPI_MERCHANT_ID: dev_placeholder
-      KASPI_WEBHOOK_SECRET: dev_placeholder
-      S3_BUCKET: rescuebite-media
-      S3_ENDPOINT: http://localhost:9000
-      S3_ACCESS_KEY: dev_placeholder
-      S3_SECRET_KEY: dev_placeholder
-      # FIX: SMTP vars were missing — email tasks silently failed in beat-spawned tasks
-      SMTP_HOST: ""
-      SMTP_PORT: "587"
-      SMTP_USER: ""
-      SMTP_PASSWORD: ""
-      SMTP_FROM: noreply@rescuebite.kz
-      FRONTEND_URL: http://localhost:3000
-      ENVIRONMENT: development
-    # FIX: beat depends on db — price_decay and auction_tasks need the database.
-    # Old config only depended on redis, causing first tasks to fail on slow DB start.
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://rescuebite:rescuebite@postgres:5432/rescuebite_db}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      SECRET_KEY: ${SECRET_KEY:-${JWT_SECRET_KEY:-rescuebite_dev_key_minimum_32chars_long}}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-rescuebite_dev_key_minimum_32chars_long}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-noreply@rescuebite.kz}
+      EMAIL_API_KEY: ${EMAIL_API_KEY:-}
+      EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS:-noreply@rescuebite.kz}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      KASPI_API_KEY: ${KASPI_API_KEY:-dev_placeholder}
     depends_on:
-      db:
+      postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     command: celery -A app.tasks.celery_app.celery_app beat --loglevel=info -s /tmp/celerybeat-schedule
 
-  # ── Flower (Celery task monitor) ────────────────────────────────────────────
+  # ── Flower (Celery task monitor — port 5555) ─────────────────────────────────
   flower:
     build: .
     restart: unless-stopped
     ports:
       - "5555:5555"
     environment:
-      REDIS_URL: redis://redis:6379/0
-      DATABASE_URL: postgresql+asyncpg://rescuebite:rescuebite@db:5432/rescuebite_db
-      SECRET_KEY: rescuebite_dev_secret_key_do_not_use_in_production_x9k2
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://rescuebite:rescuebite@postgres:5432/rescuebite_db}
+      SECRET_KEY: ${SECRET_KEY:-${JWT_SECRET_KEY:-rescuebite_dev_key_minimum_32chars_long}}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-rescuebite_dev_key_minimum_32chars_long}
     depends_on:
       - redis
       - worker

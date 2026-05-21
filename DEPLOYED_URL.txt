@@ -4,12 +4,28 @@ RescueBite Deployed URL
 Production API:  https://rescuebite-api.deployrocks.com
 Frontend:        https://rescuebite.deployrocks.com
 API Docs:        https://rescuebite-api.deployrocks.com/docs
+Flower (tasks):  https://rescuebite-api.deployrocks.com:5555
 
-Status: Pending deployment
+Status: Deploy in progress — connect repo at dashboard.deployrocks.com
 Platform: deployrocks.com
+Deploy method: docker-compose.yml (all services in one stack)
 
-To deploy:
-  1. Push this repo to GitHub
-  2. Connect repo to deployrocks.com
-  3. Set environment variables from .env.example
-  4. Deploy (docker-compose.yml is the entry point)
+Services:
+  api      → port 8000  (FastAPI + Alembic auto-migrate)
+  frontend → port 3000  (React + Nginx)
+  postgres → port 5432  (PostgreSQL 15, internal only)
+  redis    → port 6379  (Redis 7, internal only)
+  worker               (Celery async worker)
+  beat                 (Celery Beat scheduler — price decay 15min, auctions 5min)
+  flower   → port 5555  (Celery task monitor)
+
+Environment variables required on DeployRocks dashboard:
+  DATABASE_URL        postgresql+asyncpg://rescuebite:PASSWORD@postgres:5432/rescuebite_db
+  REDIS_URL           redis://redis:6379/0
+  JWT_SECRET_KEY      <random 64-char string>
+  EMAIL_API_KEY       <SendGrid API key>
+  EMAIL_FROM_ADDRESS  noreply@rescuebite.kz
+  CORS_ORIGINS        https://rescuebite.deployrocks.com,https://rescuebite-api.deployrocks.com
+  FRONTEND_URL        https://rescuebite.deployrocks.com
+  ENVIRONMENT         production
+  POSTGRES_PASSWORD   <strong password>

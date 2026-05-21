@@ -1,0 +1,14 @@
+# Local development overrides — applied automatically by `docker compose up`.
+# NOT used in production (DeployRocks uses docker-compose.yml only).
+version: "3.9"
+
+services:
+  api:
+    volumes:
+      - .:/app
+    command: >
+      sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    environment:
+      DEBUG: "true"
+      DEV_AUTO_VERIFY_EMAIL: "true"
+      DEV_AUTO_APPROVE_VENDORS: "true"
