@@ -1,4 +1,3 @@
-import pytest
 from app.tasks.auction_tasks import _find_lowest_unique_bid
 
 
@@ -78,8 +77,6 @@ def test_run_price_decay_smoke(monkeypatch):
 def test_run_price_decay_error_path(monkeypatch):
     """run_price_decay propagates exceptions (triggers retry logic)."""
     from app.tasks import price_decay as pd_module
-    from celery.exceptions import MaxRetriesExceededError, Retry
-
     async def broken_apply(_):
         raise RuntimeError("DB unavailable")
 

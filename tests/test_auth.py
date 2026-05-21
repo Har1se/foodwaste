@@ -278,7 +278,6 @@ async def test_reset_password_success(client: AsyncClient, db_session):
     """Valid reset token allows password change; login succeeds with new password."""
     from sqlmodel import select
     from app.models.user import User
-    import app.services.auth_service as svc
 
     await client.post("/auth/register", json={
         "email": "resetme@test.kz",
