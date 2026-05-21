@@ -77,10 +77,13 @@ async def create_vendor_with_listing() -> tuple[int, int, int]:
 
 @pytest.mark.asyncio
 async def test_list_auctions_public(client: AsyncClient):
-    """GET /auctions is public."""
+    """GET /auctions is public and returns cursor-paginated response."""
     resp = await client.get("/auctions")
     assert resp.status_code == 200
-    assert isinstance(resp.json(), list)
+    data = resp.json()
+    assert "data" in data
+    assert "pagination" in data
+    assert "next_cursor" in data["pagination"]
 
 
 @pytest.mark.asyncio

@@ -1,13 +1,14 @@
 from collections import Counter
 from datetime import datetime, timezone
-from typing import List
+from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.dependencies import get_current_user
+from app.core.pagination import CursorPage, PaginationMeta, encode_cursor, decode_cursor
 from app.database import get_session
 from app.models.auction import Auction, AuctionBid, AuctionStatus
 from app.models.listing import Listing, ListingStatus
@@ -87,26 +88,38 @@ async def create_auction(
     return _to_response(auction, 0)
 
 
-@router.get("", response_model=List[AuctionResponse])
+@router.get("", response_model=CursorPage[AuctionResponse])
 async def list_auctions(
-    session: AsyncSession = Depends(get_session),
+    cursor: Optional[str] = Query(None),
+    limit: int = Query(20, ge=1, le=100),
     active_only: bool = True,
+    session: AsyncSession = Depends(get_session),
 ):
-    """List auctions.
-    FIX: replaced N+1 per-auction bid query with a single COUNT GROUP BY query.
-    """
+    """List auctions with cursor-based pagination."""
+    cursor_id = None
+    if cursor:
+        decoded = decode_cursor(cursor)
+        cursor_id = decoded.get("id") if decoded else None
+
     q = select(Auction)
     if active_only:
         q = q.where(Auction.status == AuctionStatus.ACTIVE)
-    result = await session.execute(q.order_by(Auction.ends_at))
-    auctions = result.scalars().all()
+    if cursor_id:
+        q = q.where(Auction.id > cursor_id)
+    q = q.order_by(Auction.id).limit(limit + 1)
+
+    result = await session.execute(q)
+    auctions = list(result.scalars().all())
+
+    next_id = None
+    if len(auctions) > limit:
+        auctions = auctions[:limit]
+        next_id = auctions[-1].id
 
     if not auctions:
-        return []
+        return CursorPage(data=[], pagination=PaginationMeta(limit=limit, next_cursor=None))
 
     auction_ids = [a.id for a in auctions]
-
-    # Single aggregate query instead of N separate queries
     counts_result = await session.execute(
         select(AuctionBid.auction_id, func.count(AuctionBid.id).label("cnt"))
         .where(AuctionBid.auction_id.in_(auction_ids))
@@ -114,7 +127,13 @@ async def list_auctions(
     )
     bid_counts: dict[int, int] = {row.auction_id: row.cnt for row in counts_result}
 
-    return [_to_response(a, bid_counts.get(a.id, 0)) for a in auctions]
+    return CursorPage(
+        data=[_to_response(a, bid_counts.get(a.id, 0)) for a in auctions],
+        pagination=PaginationMeta(
+            limit=limit,
+            next_cursor=encode_cursor({"id": next_id}) if next_id else None,
+        ),
+    )
 
 
 @router.get("/{auction_id}", response_model=AuctionResponse)

@@ -44,8 +44,19 @@ auth_svc.revoke_refresh_token = mock_revoke_refresh_token
 
 
 class _NoOpTask:
+    """Celery task stub that records delay() calls so tests can assert on them."""
+    def __init__(self):
+        self.calls: list = []
+
     def delay(self, *args, **kwargs):
-        pass
+        self.calls.append({"args": args, "kwargs": kwargs})
+
+    def reset(self):
+        self.calls.clear()
+
+    @property
+    def called(self) -> bool:
+        return len(self.calls) > 0
 
 
 import app.tasks.email_tasks as email_tasks_module  # noqa: E402
