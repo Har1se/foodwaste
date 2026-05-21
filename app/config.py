@@ -46,6 +46,8 @@ class Settings(BaseSettings):
         "http://localhost:8000",
         "https://rescuebite.deployrocks.com",
         "https://rescuebite-api.deployrocks.com",
+        "https://foodwaste-1-fe33.onrender.com",
+        "https://foodwaste-gcjn.onrender.com",
     ]
 
     # ── Ports (for documentation / docker-compose variable expansion) ────────────

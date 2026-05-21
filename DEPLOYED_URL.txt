@@ -1,31 +1,21 @@
 RescueBite Deployed URL
 =======================
 
-Production API:  https://rescuebite-api.deployrocks.com
-Frontend:        https://rescuebite.deployrocks.com
-API Docs:        https://rescuebite-api.deployrocks.com/docs
-Flower (tasks):  https://rescuebite-api.deployrocks.com:5555
+Frontend:        https://foodwaste-1-fe33.onrender.com
+Production API:  https://foodwaste-gcjn.onrender.com
+API Docs:        https://foodwaste-gcjn.onrender.com/docs
+Health Check:    https://foodwaste-gcjn.onrender.com/health
 
-Status: Deploy in progress — connect repo at dashboard.deployrocks.com
-Platform: deployrocks.com
-Deploy method: docker-compose.yml (all services in one stack)
+Status: Live ✅
+Platform: render.com
 
 Services:
-  api      → port 8000  (FastAPI + Alembic auto-migrate)
-  frontend → port 3000  (React + Nginx)
-  postgres → port 5432  (PostgreSQL 15, internal only)
-  redis    → port 6379  (Redis 7, internal only)
-  worker               (Celery async worker)
-  beat                 (Celery Beat scheduler — price decay 15min, auctions 5min)
-  flower   → port 5555  (Celery task monitor)
+  frontend → https://foodwaste-1-fe33.onrender.com   (React + Vite, Static Site)
+  api      → https://foodwaste-gcjn.onrender.com     (FastAPI + Alembic)
+  postgres → Render managed PostgreSQL
+  redis    → Upstash Redis (relaxed-mackerel-133817.upstash.io)
 
-Environment variables required on DeployRocks dashboard:
-  DATABASE_URL        postgresql+asyncpg://rescuebite:PASSWORD@postgres:5432/rescuebite_db
-  REDIS_URL           redis://redis:6379/0
-  JWT_SECRET_KEY      <random 64-char string>
-  EMAIL_API_KEY       <SendGrid API key>
-  EMAIL_FROM_ADDRESS  noreply@rescuebite.kz
-  CORS_ORIGINS        https://rescuebite.deployrocks.com,https://rescuebite-api.deployrocks.com
-  FRONTEND_URL        https://rescuebite.deployrocks.com
-  ENVIRONMENT         production
-  POSTGRES_PASSWORD   <strong password>
+Demo accounts (seeded on first deploy):
+  admin@test.kz    / Secure123!  (role: admin)
+  vendor@test.kz   / Secure123!  (role: vendor)
+  customer@test.kz / Secure123!  (role: customer)

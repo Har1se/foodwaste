@@ -54,7 +54,7 @@ export default function Home() {
       setListings((cur) => append ? [...cur, ...data.data] : data.data)
       setNextCursor(data.pagination.next_cursor || null)
     } catch {
-      setError('Не удалось загрузить продукты. Проверьте, что backend запущен на http://localhost:8000.')
+      setError('Не удалось загрузить продукты. Проверьте подключение к интернету и попробуйте снова.')
     } finally {
       setLoading(false)
       setLoadingMore(false)
