@@ -2,6 +2,7 @@ import asyncio
 import json as _json
 import logging
 import smtplib
+import urllib.error
 import urllib.request
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -26,9 +27,14 @@ def _send_via_resend_api(to: str, subject: str, html_body: str, api_key: str) ->
         headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        result = _json.loads(resp.read())
-    logger.info("Resend API: email sent to %s id=%s", to, result.get("id"))
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            result = _json.loads(resp.read())
+        logger.info("Resend API: email sent to %s id=%s", to, result.get("id"))
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode("utf-8", errors="replace")
+        logger.error("Resend API error %s for %s: %s", exc.code, to, body)
+        raise
 
 
 def send_email(to: str, subject: str, html_body: str) -> None:
