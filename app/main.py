@@ -2,10 +2,12 @@ import re
 import time
 import traceback
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.core.logging_config import configure_logging
@@ -21,6 +23,9 @@ from app.routers import auctions, drivers
 from app.demo_seed import auto_seed
 
 logger = configure_logging(debug=settings.DEBUG)
+
+# Pre-built React frontend (committed to repo so it deploys with the backend)
+_FRONTEND_DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
 
 # Paths that are too noisy to log (health checks, Swagger assets)
 _SKIP_LOG_PATHS = frozenset({
@@ -221,11 +226,28 @@ app.include_router(auctions.router)
 app.include_router(drivers.router)
 
 
-@app.get("/", include_in_schema=False)
-async def root():
-    return RedirectResponse(url="/docs")
-
-
 @app.get("/health", tags=["Health"])
 async def health():
     return {"status": "ok", "service": "rescuebite-api", "version": "1.0.0"}
+
+
+# ── Frontend static files ─────────────────────────────────────────────────────
+if _FRONTEND_DIST.exists():
+    _ASSETS_DIR = _FRONTEND_DIST / "assets"
+    if _ASSETS_DIR.exists():
+        app.mount("/assets", StaticFiles(directory=str(_ASSETS_DIR)), name="frontend_assets")
+
+    @app.get("/", include_in_schema=False)
+    async def root():
+        return FileResponse(str(_FRONTEND_DIST / "index.html"))
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def serve_spa(full_path: str):
+        candidate = _FRONTEND_DIST / full_path
+        if candidate.is_file():
+            return FileResponse(str(candidate))
+        return FileResponse(str(_FRONTEND_DIST / "index.html"))
+else:
+    @app.get("/", include_in_schema=False)
+    async def root():
+        return RedirectResponse(url="/docs")
