@@ -1,3 +1,4 @@
+import logging
 import secrets
 from datetime import datetime, timezone, timedelta
 
@@ -15,6 +16,8 @@ from app.core.redis import (
 )
 from app.config import settings
 from app.schemas.auth import RegisterRequest, LoginRequest
+
+logger = logging.getLogger(__name__)
 
 
 def _utcnow() -> datetime:
@@ -56,6 +59,9 @@ async def register_user(data: RegisterRequest, session: AsyncSession) -> tuple[U
     )
     session.add(otp)
     await session.commit()
+
+    if settings.ENVIRONMENT != "production":
+        logger.info("DEV OTP for %s: %s", user.email, otp_code)
 
     return user, otp_code
 
