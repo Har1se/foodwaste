@@ -26,6 +26,8 @@ async def _get_or_create_user(
         user.email_verified = True
         user.is_active = True
         user.password_hash = hash_password(password)
+        user.role = role
+        user.full_name = full_name
         session.add(user)
         return user
     user = User(
