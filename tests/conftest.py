@@ -59,6 +59,22 @@ class _NoOpTask:
         return len(self.calls) > 0
 
 
+class _AsyncNoOpTask:
+    """Async email stub that records calls so tests can assert on them."""
+    def __init__(self):
+        self.calls: list = []
+
+    async def __call__(self, *args, **kwargs):
+        self.calls.append({"args": args, "kwargs": kwargs})
+
+    def reset(self):
+        self.calls.clear()
+
+    @property
+    def called(self) -> bool:
+        return len(self.calls) > 0
+
+
 import app.tasks.email_tasks as email_tasks_module  # noqa: E402
 email_tasks_module.send_verification_email = _NoOpTask()
 email_tasks_module.send_password_reset_email = _NoOpTask()
@@ -69,22 +85,25 @@ email_tasks_module.send_auction_lost_email = _NoOpTask()
 email_tasks_module.send_new_listing_email = _NoOpTask()
 email_tasks_module.send_driver_assignment_email = _NoOpTask()
 
-# Also patch the router-level imports
+# Patch async email functions on router modules (new direct-send approach)
 import app.routers.auth as auth_router_module  # noqa: E402
-auth_router_module.send_verification_email = _NoOpTask()
-auth_router_module.send_password_reset_email = _NoOpTask()
+auth_router_module.async_send_verification_email = _AsyncNoOpTask()
+auth_router_module.async_send_password_reset_email = _AsyncNoOpTask()
 
 import app.routers.orders as orders_router_module  # noqa: E402
-orders_router_module.send_order_confirmation_email = _NoOpTask()
+orders_router_module.async_send_order_confirmation_email = _AsyncNoOpTask()
 
 import app.routers.admin as admin_router_module  # noqa: E402
-admin_router_module.send_vendor_approved_email = _NoOpTask()
+admin_router_module.async_send_vendor_approved_email = _AsyncNoOpTask()
+
+# Patch email_service module for lazy imports (listings, auctions, drivers)
+import app.services.email_service as email_service_module  # noqa: E402
+email_service_module.async_send_new_listing_email = _AsyncNoOpTask()
+email_service_module.async_send_auction_won_email = _AsyncNoOpTask()
+email_service_module.async_send_driver_assignment_email = _AsyncNoOpTask()
 
 import app.routers.listings as listings_router_module  # noqa: E402
-listings_router_module.send_new_listing_email = _NoOpTask()
-
 import app.routers.drivers as drivers_router_module  # noqa: E402
-drivers_router_module.send_driver_assignment_email = _NoOpTask()
 
 # ── Auto-verify users in tests (skip email verification flow) ─────────────────
 _original_register_user = auth_svc.register_user
