@@ -159,7 +159,8 @@ async def test_svc_forgot_password_existing(db_session):
     assert result is not None
     email, token = result
     assert email == "forgotok@test.kz"
-    assert len(token) > 10
+    assert len(token) == 6
+    assert token.isdigit()
 
 
 @pytest.mark.asyncio
@@ -167,7 +168,7 @@ async def test_svc_reset_password_invalid_token(db_session):
     from app.services.auth_service import reset_password
     from fastapi import HTTPException
     with pytest.raises(HTTPException) as exc:
-        await reset_password("badtoken", "NewSecure123!", db_session)
+        await reset_password("nobody@test.kz", "000000", "NewSecure123!", db_session)
     assert exc.value.status_code == 400
 
 
@@ -179,8 +180,8 @@ async def test_svc_reset_password_success(db_session):
     await db_session.commit()
 
     result = await forgot_password("resetok@test.kz", db_session)
-    _, token = result
-    await reset_password(token, "NewPass2!", db_session)
+    _, code = result
+    await reset_password("resetok@test.kz", code, "NewPass2!", db_session)
 
     # New password works
     tokens = await login_user(LoginRequest(email="resetok@test.kz", password="NewPass2!"), db_session)
