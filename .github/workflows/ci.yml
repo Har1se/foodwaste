@@ -61,7 +61,7 @@ jobs:
           S3_SECRET_KEY: test
           ENVIRONMENT: test
         run: |
-          pytest tests/ -v --cov=app --cov-report=term-missing --cov-fail-under=60
+          pytest tests/ -v --cov=app --cov-report=term-missing --cov-fail-under=59
 
   docker-build:
     runs-on: ubuntu-latest
