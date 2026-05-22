@@ -8,6 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from app.core.security import hash_password
+from app.models.auction import Auction, AuctionStatus
+from app.models.driver import Driver, DriverStatus, VehicleType
 from app.models.listing import Listing, ListingAllergen, ListingStatus
 from app.models.user import User, UserRole
 from app.models.vendor import Vendor
@@ -41,6 +43,29 @@ async def _get_or_create_user(
     session.add(user)
     await session.flush()
     return user
+
+
+async def _get_or_create_driver(session: AsyncSession, user_id: int) -> None:
+    result = await session.execute(select(Driver).where(Driver.user_id == user_id))
+    driver = result.scalars().first()
+    if driver:
+        driver.is_verified = True
+        driver.status = DriverStatus.AVAILABLE
+        driver.current_lat = 43.238
+        driver.current_lng = 76.945
+        session.add(driver)
+    else:
+        session.add(Driver(
+            user_id=user_id,
+            vehicle_type=VehicleType.CAR,
+            current_lat=43.238,
+            current_lng=76.945,
+            status=DriverStatus.AVAILABLE,
+            is_verified=True,
+            rating=5.0,
+            total_deliveries=3,
+        ))
+    await session.flush()
 
 
 PRODUCTS = [
@@ -470,6 +495,10 @@ async def auto_seed(session: AsyncSession) -> int:
     await _get_or_create_user(
         session, "customer@test.kz", "Secure123!", UserRole.CUSTOMER, "Demo Customer"
     )
+    driver_user = await _get_or_create_user(
+        session, "driver@test.kz", "Secure123!", UserRole.CUSTOMER, "Demo Driver"
+    )
+    await _get_or_create_driver(session, driver_user.id)
 
     # Skip listing creation if listings already exist
     existing_count = await session.scalar(
@@ -526,6 +555,19 @@ async def auto_seed(session: AsyncSession) -> int:
         await session.flush()
         for code in allergens:
             session.add(ListingAllergen(listing_id=listing.id, allergen_code=code))
+
+    # Seed 3 demo auctions using the first 3 listings
+    seed_listings_r = await session.execute(select(Listing).order_by(Listing.id).limit(3))
+    seed_listings = seed_listings_r.scalars().all()
+    for i, lst in enumerate(seed_listings):
+        session.add(Auction(
+            listing_id=lst.id,
+            vendor_id=vendor.id,
+            start_price=lst.current_price,
+            reserve_price=max(1, lst.current_price // 2),
+            ends_at=now + timedelta(hours=48 + i * 24),
+            status=AuctionStatus.ACTIVE,
+        ))
 
     await session.commit()
     return len(PRODUCTS)

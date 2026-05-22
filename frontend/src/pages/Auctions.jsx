@@ -151,7 +151,7 @@ export default function Auctions() {
     setError('')
     try {
       const { data } = await auctionsApi.list({ active_only: !showAll })
-      setAuctions(data)
+      setAuctions(data.data)
     } catch {
       setError('Не удалось загрузить аукционы. Проверьте, что backend запущен.')
     } finally {
