@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { authApi } from '../api/client'
 
@@ -126,8 +126,7 @@ export default function ForgotPassword() {
 
 
 export function ResetPassword() {
-  // Legacy route — redirect to forgot-password flow
   const navigate = useNavigate()
-  useState(() => { navigate('/forgot-password') })
+  useEffect(() => { navigate('/forgot-password', { replace: true }) }, [])
   return null
 }
