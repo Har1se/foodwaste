@@ -8,7 +8,6 @@ from httpx import AsyncClient
 
 import app.routers.auth as auth_router_module
 import app.routers.orders as orders_router_module
-import app.routers.listings as listings_router_module
 
 
 @pytest.mark.asyncio

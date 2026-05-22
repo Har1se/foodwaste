@@ -102,8 +102,6 @@ email_service_module.async_send_new_listing_email = _AsyncNoOpTask()
 email_service_module.async_send_auction_won_email = _AsyncNoOpTask()
 email_service_module.async_send_driver_assignment_email = _AsyncNoOpTask()
 
-import app.routers.listings as listings_router_module  # noqa: E402
-import app.routers.drivers as drivers_router_module  # noqa: E402
 
 # ── Auto-verify users in tests (skip email verification flow) ─────────────────
 _original_register_user = auth_svc.register_user
