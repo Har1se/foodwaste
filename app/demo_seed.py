@@ -14,7 +14,7 @@ from app.models.vendor import Vendor
 
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+    return datetime.now(timezone.utc)
 
 
 async def _get_or_create_user(
@@ -25,6 +25,7 @@ async def _get_or_create_user(
     if user:
         user.email_verified = True
         user.is_active = True
+        user.password_hash = hash_password(password)
         session.add(user)
         return user
     user = User(
@@ -454,9 +455,10 @@ _ALMATY_COORDS = [
 
 
 async def auto_seed(session: AsyncSession) -> int:
-    """Seed demo users and listings. Returns count of created listings."""
-    now = _utcnow()
+    """Seed demo users (always) and listings (only if DB is empty). Returns count of new listings."""
+    from sqlmodel import func as sqlfunc
 
+    # Always ensure demo accounts exist with correct credentials
     await _get_or_create_user(
         session, "admin@test.kz", "Secure123!", UserRole.ADMIN, "Demo Admin"
     )
@@ -467,13 +469,23 @@ async def auto_seed(session: AsyncSession) -> int:
         session, "customer@test.kz", "Secure123!", UserRole.CUSTOMER, "Demo Customer"
     )
 
+    # Skip listing creation if listings already exist
+    existing_count = await session.scalar(
+        select(sqlfunc.count()).select_from(Listing)
+    )
+    if existing_count and existing_count > 0:
+        await session.commit()
+        return 0
+
+    now = _utcnow()
+
     result = await session.execute(select(Vendor).where(Vendor.user_id == vendor_user.id))
     vendor = result.scalars().first()
     if not vendor:
         vendor = Vendor(
             user_id=vendor_user.id,
             business_name="Green Cafe",
-            bin_number="123456789012",
+            bin_number="123456789011",
             address="Алматы, ул. Абая 1",
             latitude=43.238,
             longitude=76.945,

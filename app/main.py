@@ -19,8 +19,6 @@ from app.models.log import SystemLog
 from app.routers import auth, listings, orders, vendors, admin, payments, jobs
 from app.routers import auctions, drivers
 from app.demo_seed import auto_seed
-from app.models.listing import Listing
-from sqlmodel import select, func
 
 logger = configure_logging(debug=settings.DEBUG)
 
@@ -60,13 +58,11 @@ async def lifespan(app: FastAPI):
 
     try:
         async with AsyncSessionLocal() as session:
-            count = await session.scalar(select(func.count()).select_from(Listing))
-            if count == 0:
-                logger.info("Database empty — seeding demo data…")
-                n = await auto_seed(session)
+            n = await auto_seed(session)
+            if n:
                 logger.info("Seeded %d demo listings", n)
             else:
-                logger.info("Database has %d listings — skipping seed", count)
+                logger.info("Demo users refreshed (listings already exist)")
     except Exception as exc:
         logger.warning("Auto-seed skipped: %s", exc)
 
