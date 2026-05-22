@@ -3,6 +3,7 @@ import logging
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+import httpx
 
 from app.config import settings
 
@@ -11,8 +12,9 @@ logger = logging.getLogger(__name__)
 
 def _send_via_resend_api(to: str, subject: str, html_body: str, api_key: str) -> None:
     """Send email via Resend HTTP API using httpx (bypasses Cloudflare bot protection)."""
-    import httpx
-    from_addr = settings.SMTP_FROM or "onboarding@resend.dev"
+    # Используем SMTP_FROM, если он задан, иначе Resend требует верифицированный домен или onboarding@resend.dev
+    from_addr = settings.SMTP_FROM or settings.SMTP_USER or "onboarding@resend.dev"
+    
     payload = {
         "from": f"RescueBite <{from_addr}>",
         "to": [to],
@@ -45,11 +47,14 @@ def send_email(to: str, subject: str, html_body: str) -> None:
         logger.warning("SMTP not configured — skipping email to %s", to)
         return
 
+    # Важно: заголовок From должен совпадать с авторизованным отправителем в SMTP-сервисе
+    from_addr = settings.SMTP_FROM or settings.SMTP_USER
+
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
-    msg["From"] = f"RescueBite <{settings.SMTP_USER}>"
+    msg["From"] = f"RescueBite <{from_addr}>"
     msg["To"] = to
-    msg["Reply-To"] = settings.SMTP_USER
+    msg["Reply-To"] = from_addr
     msg.attach(MIMEText(html_body, "html", "utf-8"))
 
     try:
@@ -84,15 +89,15 @@ def build_verification_email(otp_code: str) -> tuple[str, str]:
     return subject, html
 
 
-def build_password_reset_email(reset_token: str) -> tuple[str, str]:
-    reset_url = f"{settings.FRONTEND_URL}/reset-password?token={reset_token}"
+def build_password_reset_email(reset_code: str) -> tuple[str, str]:
     subject = "RescueBite — Сброс пароля"
     html = f"""
     <div style="font-family:sans-serif;max-width:500px;margin:auto">
       <h2 style="color:#2d7a4f">Сброс пароля</h2>
-      <p>Нажмите кнопку ниже, чтобы установить новый пароль:</p>
-      <a href="{reset_url}" style="display:inline-block;padding:12px 24px;background:#2d7a4f;color:#fff;text-decoration:none;border-radius:6px;margin:16px 0">Сбросить пароль</a>
-      <p>Ссылка действительна <strong>30 минут</strong>.</p>
+      <p>Ваш код для сброса пароля:</p>
+      <div style="font-size:36px;font-weight:bold;letter-spacing:10px;color:#2d7a4f;margin:20px 0;text-align:center">{reset_code}</div>
+      <p>Введите этот код на странице сброса пароля и установите новый пароль.</p>
+      <p>Код действителен <strong>30 минут</strong>.</p>
       <p style="color:#888;font-size:12px">Если вы не запрашивали сброс — проигнорируйте это письмо.</p>
     </div>
     """
@@ -140,7 +145,11 @@ def build_new_listing_email(
     category: str | None,
 ) -> tuple[str, str]:
     subject = f"RescueBite — Новое предложение: {title}"
-    cat_label = category.capitalize() if category else "Еда"
+    
+    # Защита от передачи объектов вместо строк
+    cat_str = str(category) if category else "Еда"
+    cat_label = cat_str.capitalize()
+    
     price_label = "Бесплатно!" if current_price == 0 else f"{current_price:,.0f} ₸"
     html = f"""
     <div style="font-family:sans-serif;max-width:500px;margin:auto">
@@ -228,7 +237,7 @@ async def async_send_vendor_approved_email(email: str, business_name: str) -> No
     asyncio.create_task(_fire(_send(email, subject, html)))
 
 
-async def async_send_new_listing_email(email: str, title: str, current_price: int, vendor_name: str, category) -> None:
+async def async_send_new_listing_email(email: str, title: str, current_price: int, vendor_name: str, category: str | None = None) -> None:
     subject, html = build_new_listing_email(title, current_price, vendor_name, category)
     asyncio.create_task(_fire(_send(email, subject, html)))
 

@@ -275,7 +275,7 @@ async def test_forgot_password_nonexistent_email(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_reset_password_success(client: AsyncClient, db_session):
-    """Valid reset token allows password change; login succeeds with new password."""
+    """Valid reset OTP code allows password change; login succeeds with new password."""
     from sqlmodel import select
     from app.models.user import User
 
@@ -288,11 +288,12 @@ async def test_reset_password_success(client: AsyncClient, db_session):
 
     result = await db_session.execute(select(User).where(User.email == "resetme@test.kz"))
     user = result.scalars().first()
-    token = user.reset_token
-    assert token is not None
+    code = user.reset_token
+    assert code is not None
 
     resp = await client.post("/auth/reset-password", json={
-        "token": token,
+        "email": "resetme@test.kz",
+        "code": code,
         "new_password": "NewSecure123!",
     })
     assert resp.status_code == 200
@@ -305,10 +306,18 @@ async def test_reset_password_success(client: AsyncClient, db_session):
 
 
 @pytest.mark.asyncio
-async def test_reset_password_invalid_token(client: AsyncClient):
-    """Invalid reset token returns 400."""
+async def test_reset_password_invalid_code(client: AsyncClient):
+    """Invalid reset code returns 400."""
+    await client.post("/auth/register", json={
+        "email": "invalidreset@test.kz",
+        "password": "Secure123!",
+        "role": "customer",
+    })
+    await client.post("/auth/forgot-password", json={"email": "invalidreset@test.kz"})
+
     resp = await client.post("/auth/reset-password", json={
-        "token": "totally-fake-token-xyz",
+        "email": "invalidreset@test.kz",
+        "code": "000000",
         "new_password": "NewSecure123!",
     })
     assert resp.status_code == 400

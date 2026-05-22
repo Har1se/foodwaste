@@ -116,21 +116,25 @@ async def forgot_password(email: str, session: AsyncSession) -> tuple[str, str] 
     if not user:
         return None
 
-    reset_token = secrets.token_urlsafe(32)
-    user.reset_token = reset_token
+    otp_code = _generate_otp()
+    user.reset_token = otp_code
     user.reset_token_expires = _utcnow() + timedelta(minutes=30)
     session.add(user)
     await session.commit()
-    return user.email, reset_token
+
+    if settings.ENVIRONMENT != "production":
+        logger.info("DEV reset OTP for %s: %s", user.email, otp_code)
+
+    return user.email, otp_code
 
 
-async def reset_password(token: str, new_password: str, session: AsyncSession) -> None:
-    result = await session.execute(
-        select(User).where(User.reset_token == token)
-    )
+async def reset_password(email: str, code: str, new_password: str, session: AsyncSession) -> None:
+    result = await session.execute(select(User).where(User.email == email))
     user = result.scalars().first()
-    if not user or not user.reset_token_expires or user.reset_token_expires < _utcnow():
-        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+    if not user or not user.reset_token or user.reset_token != code:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset code")
+    if not user.reset_token_expires or user.reset_token_expires < _utcnow():
+        raise HTTPException(status_code=400, detail="Invalid or expired reset code")
 
     user.password_hash = hash_password(new_password)
     user.reset_token = None

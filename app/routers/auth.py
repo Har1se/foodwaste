@@ -38,7 +38,8 @@ class ForgotPasswordRequest(BaseModel):
 
 
 class ResetPasswordRequest(BaseModel):
-    token: str
+    email: EmailStr
+    code: str
     new_password: str
 
 
@@ -102,8 +103,8 @@ async def reset_password(
     data: ResetPasswordRequest,
     session: AsyncSession = Depends(get_session),
 ):
-    """Set a new password using the token from the reset email."""
-    await auth_service.reset_password(data.token, data.new_password, session)
+    """Set a new password using the 6-digit OTP code from the reset email."""
+    await auth_service.reset_password(data.email, data.code, data.new_password, session)
     return {"detail": "Password reset successfully. You can now log in."}
 
 

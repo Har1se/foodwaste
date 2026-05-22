@@ -204,7 +204,20 @@
           }
         },
         {
-          "name": "Forgot Password",
+          "name": "Forgot Password (send OTP code) ⭐",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// After this runs, check email inbox for 6-digit code",
+                  "// OR check Render logs: Dashboard → foodwaste-gcjn → Logs → search 'DEV reset OTP'",
+                  "console.log('OTP sent to email. Check inbox or Render logs for the code.');"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
           "request": {
             "auth": { "type": "noauth" },
             "method": "POST",
@@ -214,6 +227,19 @@
               "raw": "{\n  \"email\": \"customer@test.kz\"\n}"
             },
             "url": { "raw": "{{base_url}}/auth/forgot-password", "host": ["{{base_url}}"], "path": ["auth", "forgot-password"] }
+          }
+        },
+        {
+          "name": "Reset Password (enter OTP + new password) ⭐",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"customer@test.kz\",\n  \"code\": \"123456\",\n  \"new_password\": \"NewSecure123!\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/auth/reset-password", "host": ["{{base_url}}"], "path": ["auth", "reset-password"] }
           }
         },
         {
@@ -339,7 +365,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"title\": \"Ролл Калифорния\",\n  \"description\": \"Свежие роллы — остаток после обеда, отдаём со скидкой\",\n  \"original_price\": 2500,\n  \"current_price\": 1500,\n  \"discount_percentage\": 40,\n  \"quantity_total\": 5,\n  \"quantity_available\": 5,\n  \"pickup_window_start\": \"2026-05-22T18:00:00\",\n  \"pickup_window_end\": \"2026-05-22T22:00:00\",\n  \"category\": \"sushi\",\n  \"allergens\": [\"FISH\", \"SESAME\"]\n}"
+              "raw": "{\n  \"title\": \"Ролл Калифорния\",\n  \"description\": \"Свежие роллы — остаток после обеда, отдаём со скидкой\",\n  \"original_price\": 2500,\n  \"current_price\": 1500,\n  \"discount_percentage\": 40,\n  \"quantity_total\": 5,\n  \"quantity_available\": 5,\n  \"pickup_window_start\": \"2026-05-29T10:00:00\",\n  \"pickup_window_end\": \"2026-05-29T22:00:00\",\n  \"category\": \"sushi\",\n  \"allergens\": [\"FISH\", \"SESAME\"]\n}"
             },
             "url": { "raw": "{{base_url}}/listings", "host": ["{{base_url}}"], "path": ["listings"] }
           }
@@ -568,7 +594,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"listing_id\": {{listing_id}},\n  \"start_price\": 3000,\n  \"reserve_price\": 500,\n  \"ends_at\": \"2026-05-23T23:59:00\"\n}"
+              "raw": "{\n  \"listing_id\": {{listing_id}},\n  \"start_price\": 3000,\n  \"reserve_price\": 500,\n  \"ends_at\": \"2026-05-29T23:59:00\"\n}"
             },
             "url": { "raw": "{{base_url}}/auctions", "host": ["{{base_url}}"], "path": ["auctions"] }
           }
@@ -627,7 +653,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"latitude\": 43.2220,\n  \"longitude\": 76.8512,\n  \"status\": \"AVAILABLE\"\n}"
+              "raw": "{\n  \"lat\": 43.2220,\n  \"lng\": 76.8512,\n  \"status\": \"AVAILABLE\"\n}"
             },
             "url": { "raw": "{{base_url}}/drivers/me/location", "host": ["{{base_url}}"], "path": ["drivers", "me", "location"] }
           }
@@ -750,19 +776,19 @@
           }
         },
         {
-          "name": "Suspend / Activate User",
+          "name": "Suspend User (set inactive)",
           "request": {
             "auth": {
               "type": "bearer",
               "bearer": [{ "key": "token", "value": "{{admin_token}}", "type": "string" }]
             },
             "method": "PATCH",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"suspend\": true\n}"
-            },
-            "url": { "raw": "{{base_url}}/admin/users/{{user_id}}/suspend", "host": ["{{base_url}}"], "path": ["admin", "users", "{{user_id}}", "suspend"] }
+            "url": {
+              "raw": "{{base_url}}/admin/users/{{user_id}}/suspend?is_active=false",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "users", "{{user_id}}", "suspend"],
+              "query": [{ "key": "is_active", "value": "false" }]
+            }
           }
         },
         {
@@ -795,7 +821,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"is_approved\": true\n}"
+              "raw": "{\n  \"action\": \"approve\"\n}"
             },
             "url": { "raw": "{{base_url}}/admin/vendors/{{vendor_id}}/approve", "host": ["{{base_url}}"], "path": ["admin", "vendors", "{{vendor_id}}", "approve"] }
           }
