@@ -1,6 +1,8 @@
 import asyncio
-import smtplib
+import json as _json
 import logging
+import smtplib
+import urllib.request
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
@@ -9,15 +11,42 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 
+def _send_via_resend_api(to: str, subject: str, html_body: str, api_key: str) -> None:
+    """Send email via Resend HTTP API — works on Render free tier (SMTP is blocked)."""
+    from_addr = settings.SMTP_FROM or "onboarding@resend.dev"
+    payload = _json.dumps({
+        "from": f"RescueBite <{from_addr}>",
+        "to": [to],
+        "subject": subject,
+        "html": html_body,
+    }).encode("utf-8")
+    req = urllib.request.Request(
+        "https://api.resend.com/emails",
+        data=payload,
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        result = _json.loads(resp.read())
+    logger.info("Resend API: email sent to %s id=%s", to, result.get("id"))
+
+
 def send_email(to: str, subject: str, html_body: str) -> None:
-    """Send an HTML email via SMTP (Gmail / Yandex / Mail.ru compatible)."""
-    if not settings.SMTP_HOST or not settings.SMTP_USER or not settings.SMTP_PASSWORD:
+    """Send an HTML email — uses Resend HTTP API if key detected, else SMTP."""
+    if not settings.SMTP_PASSWORD:
+        logger.warning("SMTP not configured — skipping email to %s", to)
+        return
+
+    if settings.SMTP_PASSWORD.startswith("re_"):
+        _send_via_resend_api(to, subject, html_body, settings.SMTP_PASSWORD)
+        return
+
+    if not settings.SMTP_HOST or not settings.SMTP_USER:
         logger.warning("SMTP not configured — skipping email to %s", to)
         return
 
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
-    # Gmail requires From to match authenticated user
     msg["From"] = f"RescueBite <{settings.SMTP_USER}>"
     msg["To"] = to
     msg["Reply-To"] = settings.SMTP_USER
