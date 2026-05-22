@@ -70,7 +70,7 @@ services:
       ENVIRONMENT: ${ENVIRONMENT:-development}
       DEBUG: ${DEBUG:-false}
       ENABLE_RATE_LIMIT: ${ENABLE_RATE_LIMIT:-true}
-      DEV_AUTO_VERIFY_EMAIL: ${DEV_AUTO_VERIFY_EMAIL:-true}
+      DEV_AUTO_VERIFY_EMAIL: ${DEV_AUTO_VERIFY_EMAIL:-false}
       DEV_AUTO_APPROVE_VENDORS: ${DEV_AUTO_APPROVE_VENDORS:-true}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:8000}
       KASPI_API_KEY: ${KASPI_API_KEY:-dev_placeholder}
@@ -118,6 +118,8 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-/api}
     restart: unless-stopped
     ports:
       - "${FRONTEND_PORT:-3000}:3000"
