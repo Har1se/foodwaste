@@ -1,9 +1,6 @@
 import asyncio
-import json as _json
 import logging
 import smtplib
-import urllib.error
-import urllib.request
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
