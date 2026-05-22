@@ -50,7 +50,7 @@ async def register(
 ):
     """Register a new user account. Sends a 6-digit OTP to the provided email."""
     ip = request.client.host if request.client else "unknown"
-    await check_rate_limit(f"ratelimit:register:{ip}", max_requests=3, window_seconds=3600)
+    await check_rate_limit(f"ratelimit:register:{ip}", max_requests=20, window_seconds=3600)
     user, otp_code = await auth_service.register_user(data, session)
     await async_send_verification_email(user.email, otp_code)
     return UserProfileResponse.model_validate(user)
