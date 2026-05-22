@@ -13,28 +13,25 @@ logger = logging.getLogger(__name__)
 
 
 def _send_via_resend_api(to: str, subject: str, html_body: str, api_key: str) -> None:
-    """Send email via Resend HTTP API — works on Render free tier (SMTP is blocked)."""
+    """Send email via Resend HTTP API using httpx (bypasses Cloudflare bot protection)."""
+    import httpx
     from_addr = settings.SMTP_FROM or "onboarding@resend.dev"
-    payload = _json.dumps({
+    payload = {
         "from": f"RescueBite <{from_addr}>",
         "to": [to],
         "subject": subject,
         "html": html_body,
-    }).encode("utf-8")
-    req = urllib.request.Request(
-        "https://api.resend.com/emails",
-        data=payload,
-        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-        method="POST",
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            result = _json.loads(resp.read())
-        logger.info("Resend API: email sent to %s id=%s", to, result.get("id"))
-    except urllib.error.HTTPError as exc:
-        body = exc.read().decode("utf-8", errors="replace")
-        logger.error("Resend API error %s for %s: %s", exc.code, to, body)
-        raise
+    }
+    with httpx.Client(timeout=30) as client:
+        resp = client.post(
+            "https://api.resend.com/emails",
+            json=payload,
+            headers={"Authorization": f"Bearer {api_key}"},
+        )
+    if resp.is_error:
+        logger.error("Resend API error %s for %s: %s", resp.status_code, to, resp.text)
+        resp.raise_for_status()
+    logger.info("Resend API: email sent to %s id=%s", to, resp.json().get("id"))
 
 
 def send_email(to: str, subject: str, html_body: str) -> None:
