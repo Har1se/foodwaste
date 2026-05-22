@@ -44,7 +44,7 @@ export default function ForgotPassword() {
           <div className="text-center mb-8">
             <span className="text-5xl">🔑</span>
             <h1 className="mt-3 text-2xl font-bold text-gray-900">Сброс пароля</h1>
-            <p className="mt-1 text-sm text-gray-500">Введите email — пришлём 6-значный код</p>
+            <p className="mt-1 text-sm text-gray-500">Введите email — пришлём 6-значный код на почту</p>
           </div>
           <form onSubmit={handleSendCode} className="card p-6 space-y-4">
             <div>
